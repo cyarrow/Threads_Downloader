@@ -1,0 +1,36 @@
+{
+  "expo": {
+    "name": "Threads Downloader",
+    "slug": "threads-downloader",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.cyarrow.threadsdownloader"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "package": "com.cyarrow.threadsdownloader"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "允許存取相簿以儲存下載的 Threads 媒體",
+          "savePhotosPermission": "允許將下載的 Threads 媒體存到相簿",
+          "isAccessMediaLocationEnabled": false
+        }
+      ]
+    ]
+  }
+}

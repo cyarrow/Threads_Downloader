@@ -2,7 +2,7 @@
   "expo": {
     "name": "Threads 下載",
     "slug": "threads-downloader",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -42,7 +42,8 @@
             "NSExtensionActivationSupportsText": true
           }
         }
-      ]
+      ],
+      "./plugins/withReleaseSigning"
     ],
     "scheme": "threadsdownloader"
   }

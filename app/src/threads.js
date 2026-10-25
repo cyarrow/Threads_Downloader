@@ -56,19 +56,31 @@ export function findPost(root, code) {
   return null;
 }
 
+// Smallest image that still looks sharp in a list or grid cell.
+function thumbnail(candidates) {
+  if (!Array.isArray(candidates) || candidates.length === 0) return undefined;
+  const sharp = candidates.filter((c) => c.url && (c.width || 0) >= 320);
+  const pick = sharp.length
+    ? sharp.reduce((a, b) => ((b.width || 0) < (a.width || 0) ? b : a))
+    : largest(candidates);
+  return pick && pick.url;
+}
+
 function itemMedia(item) {
+  const candidates = item.image_versions2 && item.image_versions2.candidates;
+  const thumb = thumbnail(candidates);
   const video = largest(item.video_versions);
   if (video && video.url) {
-    return { type: 'video', url: video.url, width: video.width, height: video.height };
+    return { type: 'video', url: video.url, width: video.width, height: video.height, thumb };
   }
-  const image = largest(item.image_versions2 && item.image_versions2.candidates);
+  const image = largest(candidates);
   if (image && image.url) {
-    return { type: 'image', url: image.url, width: image.width, height: image.height };
+    return { type: 'image', url: image.url, width: image.width, height: image.height, thumb };
   }
   return null;
 }
 
-// Returns [{ type: 'video' | 'image', url, width, height }] for a post object.
+// Returns [{ type: 'video' | 'image', url, width, height, thumb }] for a post object.
 export function mediaFromPost(post) {
   if (!post) return [];
   const items =
@@ -80,7 +92,8 @@ export function mediaFromPost(post) {
 
 // `jsonTexts`: contents of the page's <script type="application/json"> tags.
 // `domVideoUrls`: <video> sources seen in the rendered page, used as a fallback.
-export function extractMedia(jsonTexts, code, domVideoUrls = []) {
+// Returns { author, caption, media }; author/caption are null when unknown.
+export function extractPost(jsonTexts, code, domVideoUrls = []) {
   for (const text of jsonTexts) {
     if (!text.includes(code)) continue;
     let root;
@@ -89,12 +102,20 @@ export function extractMedia(jsonTexts, code, domVideoUrls = []) {
     } catch {
       continue;
     }
-    const media = mediaFromPost(findPost(root, code));
-    if (media.length) return media;
+    const post = findPost(root, code);
+    const media = mediaFromPost(post);
+    if (media.length) {
+      return {
+        author: (post.user && post.user.username) || null,
+        caption: (post.caption && post.caption.text) || null,
+        media,
+      };
+    }
   }
-  return [...new Set(domVideoUrls)]
+  const media = [...new Set(domVideoUrls)]
     .filter((u) => /^https?:/.test(u))
     .map((url) => ({ type: 'video', url }));
+  return { author: null, caption: null, media };
 }
 
 export function fileName(code, index, media) {

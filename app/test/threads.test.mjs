@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseThreadsUrl, extractMedia, fileName } from '../src/threads.js';
+import { parseThreadsUrl, extractPost, fileName, isLoggedInUrl } from '../src/threads.js';
+
+const extractMedia = (...args) => extractPost(...args).media;
 
 // Shape mirrors the JSON Threads embeds in its pages; values are synthetic.
 const page = (post, extra = []) =>
@@ -41,7 +43,13 @@ test('parseThreadsUrl accepts the app\'s /share/ links without knowing the post 
 
 test('picks the highest-resolution video, not the thumbnail', () => {
   assert.deepEqual(extractMedia([page(videoPost)], 'VID123'), [
-    { type: 'video', url: 'https://cdn.example/v_hd.mp4', width: 1080, height: 1920 },
+    {
+      type: 'video',
+      url: 'https://cdn.example/v_hd.mp4',
+      width: 1080,
+      height: 1920,
+      thumb: 'https://cdn.example/thumb.jpg',
+    },
   ]);
 });
 
@@ -88,8 +96,7 @@ test('fileName picks an extension from the media type', () => {
   assert.equal(fileName('C', 2, { type: 'image', url: 'https://x/a.jpg' }), 'threads_C_3.jpg');
 });
 
-test('isLoggedInUrl: only a regular threads.com page counts as logged in', async () => {
-  const { isLoggedInUrl } = await import('../src/threads.js');
+test('isLoggedInUrl: only a regular threads.com page counts as logged in', () => {
   assert.equal(isLoggedInUrl('https://www.threads.com/'), true);
   assert.equal(isLoggedInUrl('https://www.threads.com/@someone/post/ABC'), true);
   assert.equal(isLoggedInUrl('https://www.threads.com/login?show_choice_screen=false'), false);
@@ -97,4 +104,32 @@ test('isLoggedInUrl: only a regular threads.com page counts as logged in', async
   assert.equal(isLoggedInUrl('https://www.instagram.com/accounts/login/'), false);
   assert.equal(isLoggedInUrl('https://www.threads.com.evil.example/'), false);
   assert.equal(isLoggedInUrl('about:blank'), false);
+});
+
+test('extractPost returns author, caption, and a grid-sized thumbnail per item', () => {
+  const post = {
+    code: 'CAP1',
+    media_type: 1,
+    user: { username: 'someone' },
+    caption: { text: 'hello' },
+    image_versions2: { candidates: [
+      { url: 'https://cdn.example/full.jpg', width: 1440, height: 1440 },
+      { url: 'https://cdn.example/s640.jpg', width: 640, height: 640 },
+      { url: 'https://cdn.example/s320.jpg', width: 320, height: 320 },
+      { url: 'https://cdn.example/s150.jpg', width: 150, height: 150 },
+    ] },
+  };
+  const result = extractPost([page(post)], 'CAP1');
+  assert.equal(result.author, 'someone');
+  assert.equal(result.caption, 'hello');
+  assert.equal(result.media[0].url, 'https://cdn.example/full.jpg');
+  assert.equal(result.media[0].thumb, 'https://cdn.example/s320.jpg');
+});
+
+test('extractPost leaves author and caption null when only <video> tags were found', () => {
+  assert.deepEqual(extractPost([], 'X', ['https://cdn.example/x.mp4']), {
+    author: null,
+    caption: null,
+    media: [{ type: 'video', url: 'https://cdn.example/x.mp4' }],
+  });
 });

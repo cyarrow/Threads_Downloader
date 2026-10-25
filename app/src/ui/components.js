@@ -7,6 +7,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { summary } from '../historyModel';
 import { spring, useReduceMotion } from './motion';
 import { type, useTheme } from './theme';
 
@@ -122,14 +123,23 @@ export function StatusCard({ state, onAction }) {
         </>
       );
       break;
+    case 'choosing':
+      body = (
+        <Row icon={<ActivityIndicator color={t.secondary} />}>
+          <Text style={[type.headline, { color: t.label }]}>選擇要下載的項目</Text>
+          <Text style={[type.subhead, { color: t.secondary }]}>
+            這篇貼文有 {state.post.media.length} 個項目
+          </Text>
+        </Row>
+      );
+      break;
     case 'done':
       body = (
         <Row icon={<Badge color={t.success} glyph="✓" />}>
-          <Text style={[type.headline, { color: t.label }]}>已存到相簿</Text>
+          <Text style={[type.headline, { color: t.label }]}>已存到「Threads」相簿</Text>
           <Text style={[type.subhead, { color: t.secondary }]}>
-            {state.videos > 0 && `${state.videos} 部影片`}
-            {state.videos > 0 && state.images > 0 && '、'}
-            {state.images > 0 && `${state.images} 張圖片`}
+            {summary(state)}
+            {state.author ? ` · @${state.author}` : ''}
           </Text>
         </Row>
       );
@@ -160,7 +170,7 @@ export function StatusCard({ state, onAction }) {
           <Text style={[type.headline, { color: t.label, marginBottom: 12 }]}>一鍵下載</Text>
           <Step n="1" text="在 Threads 貼文點「分享」" />
           <Step n="2" text="選擇「Threads 下載」" />
-          <Step n="3" text="影片和圖片會自動存到相簿" />
+          <Step n="3" text="存好後自動回到 Threads" />
         </>
       );
   }

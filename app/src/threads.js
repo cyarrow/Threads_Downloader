@@ -20,6 +20,15 @@ export function parseThreadsUrl(text) {
   return { id, code: id, url: `https://www.threads.com/t/${id}` };
 }
 
+// True once the login flow (threads /login, Instagram auth pages) has landed on a
+// regular threads.com page, i.e. the session is logged in.
+export function isLoggedInUrl(url) {
+  const m =
+    typeof url === 'string' &&
+    url.match(/^https:\/\/(?:www\.)?threads\.(?:com|net)(?=[/?#]|$)([^?#]*)/i);
+  return !!m && !/^\/(login|accounts)\b/.test(m[1] || '/');
+}
+
 function largest(list) {
   if (!Array.isArray(list) || list.length === 0) return null;
   return list.reduce((best, v) =>

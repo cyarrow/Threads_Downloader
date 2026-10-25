@@ -1,120 +1,144 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState, Button, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as Clipboard from 'expo-clipboard';
+import { useShareIntent } from 'expo-share-intent';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
-import { extractMedia, parseThreadsUrl } from './src/threads';
-import { collectScript } from './src/injected';
-import { saveAll } from './src/download';
+import { useDownloader } from './src/useDownloader';
+import { parseThreadsUrl } from './src/threads';
+import { Button, Card, StatusCard } from './src/ui/components';
+import { LoginSheet } from './src/ui/LoginSheet';
+import { type, useTheme } from './src/ui/theme';
 
-const LOGIN_URL = 'https://www.threads.com/login';
-
-// UI intentionally bare-bones: paste/copy a link -> media lands in the photo library.
 export default function App() {
-  const [input, setInput] = useState('');
-  const [status, setStatus] = useState('複製 Threads 貼文連結後回到 App，會自動下載');
-  const [webUrl, setWebUrl] = useState(null);
-  const target = useRef(null); // { id, code, url } while extracting, null otherwise
-  const lastId = useRef(null);
-  const webRef = useRef(null);
+  return (
+    <SafeAreaProvider>
+      <Home />
+    </SafeAreaProvider>
+  );
+}
 
-  const start = useCallback((text) => {
+function Home() {
+  const t = useTheme();
+  const insets = useSafeAreaInsets();
+  const { hasShareIntent, shareIntent, resetShareIntent } = useShareIntent();
+  const { state, start, retry, webViewProps, webViewKey, busy } = useDownloader();
+  const [link, setLink] = useState('');
+  const [loginOpen, setLoginOpen] = useState(false);
+  const resumeAfterLogin = useRef(false);
+
+  const download = (text) => {
     const post = parseThreadsUrl(text);
-    if (!post) {
-      setStatus('不是有效的 Threads 貼文連結');
-      return;
-    }
-    lastId.current = post.id;
-    target.current = post;
-    setInput(post.url);
-    setStatus('讀取貼文中…');
-    setWebUrl(`${post.url}?t=${Date.now()}`); // force reload even for the same post
-  }, []);
+    setLink(post ? post.url : text);
+    start(text);
+  };
 
-  // One-tap flow: whenever the app comes to the foreground, pick up a copied link.
+  // "Share → Threads 下載" from the Threads app lands here and starts right away.
   useEffect(() => {
-    const check = async () => {
-      const text = await Clipboard.getStringAsync();
-      const post = parseThreadsUrl(text);
-      if (post && post.id !== lastId.current) start(text);
-    };
-    check();
-    const sub = AppState.addEventListener('change', (s) => s === 'active' && check());
-    return () => sub.remove();
-  }, [start]);
+    if (!hasShareIntent) return;
+    download(shareIntent.webUrl || shareIntent.text || '');
+    resetShareIntent();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasShareIntent]);
 
-  const onLoadEnd = () => {
-    const post = target.current;
-    if (post) webRef.current?.injectJavaScript(collectScript(post.id, post.code));
-  };
-
-  const onMessage = async (event) => {
-    const post = target.current;
-    const data = JSON.parse(event.nativeEvent.data);
-    if (!post || data.id !== post.id) return;
-    target.current = null;
-
-    const code = data.code;
-    const media = code ? extractMedia(data.json, code, data.videos) : [];
-    if (!media.length) {
-      setStatus(
-        data.loggedOut || !code || (!data.json.length && !data.videos.length)
-          ? '讀不到貼文內容，請先按「登入 Threads」後再下載一次'
-          : '這篇貼文沒有圖片或影片',
-      );
-      return;
+  // The only way past a login wall is logging in, so offer the sheet right away
+  // and pick the download back up once it closes logged in.
+  useEffect(() => {
+    if (state.action?.kind === 'login') {
+      resumeAfterLogin.current = true;
+      setLoginOpen(true);
     }
-    try {
-      const n = await saveAll(code, media, (i, total) =>
-        setStatus(`下載中 ${i + 1}/${total}…`),
-      );
-      setStatus(`完成！已儲存 ${n} 個檔案到相簿`);
-    } catch (e) {
-      setStatus(`下載失敗：${e.message}`);
+  }, [state]);
+
+  const onAction = (kind) => (kind === 'login' ? setLoginOpen(true) : retry());
+
+  const onLoggedIn = () => {
+    setLoginOpen(false);
+    if (resumeAfterLogin.current) {
+      resumeAfterLogin.current = false;
+      retry();
     }
   };
+
+  const pasteAndDownload = async () => download(await Clipboard.getStringAsync());
 
   return (
-    <View style={styles.container}>
-      <TextInput
-        style={styles.input}
-        value={input}
-        onChangeText={setInput}
-        placeholder="貼上 Threads 貼文連結"
-        autoCapitalize="none"
-      />
-      <View style={styles.row}>
-        <Button title="下載" onPress={() => start(input)} />
-        <Button
-          title="登入 Threads"
-          onPress={() => {
-            target.current = null;
-            setStatus('登入完成後，回到上方按「下載」');
-            setWebUrl(LOGIN_URL);
-          }}
-        />
-      </View>
-      <Text style={styles.status}>{status}</Text>
-      {webUrl && (
-        <WebView
-          ref={webRef}
-          style={styles.web}
-          source={{ uri: webUrl }}
-          onLoadEnd={onLoadEnd}
-          onMessage={onMessage}
-          sharedCookiesEnabled
-          allowsInlineMediaPlayback
-        />
+    <View style={[styles.screen, { backgroundColor: t.background }]}>
+      <ScrollView
+        contentContainerStyle={[styles.content, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 }]}
+        keyboardShouldPersistTaps="handled"
+      >
+        <Text style={[type.largeTitle, { color: t.label }]}>Threads 下載</Text>
+        <Text style={[type.subhead, styles.subtitle, { color: t.secondary }]}>
+          把貼文裡的影片和圖片存到相簿
+        </Text>
+
+        <Card style={styles.inputCard}>
+          <View style={[styles.field, { backgroundColor: t.fill }]}>
+            <TextInput
+              value={link}
+              onChangeText={setLink}
+              placeholder="貼上 Threads 貼文連結"
+              placeholderTextColor={t.tertiary}
+              style={[type.body, styles.input, { color: t.label }]}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="url"
+              returnKeyType="go"
+              onSubmitEditing={() => link && download(link)}
+              editable={!busy}
+            />
+            {!!link && !busy && (
+              <Pressable onPress={() => setLink('')} hitSlop={10} accessibilityLabel="清除連結">
+                <Text style={[styles.clear, { color: t.tertiary }]}>✕</Text>
+              </Pressable>
+            )}
+          </View>
+          <Button
+            title={link ? '下載' : '貼上連結並下載'}
+            onPress={link ? () => download(link) : pasteAndDownload}
+            disabled={busy}
+            style={styles.primary}
+          />
+        </Card>
+
+        <StatusCard state={state} onAction={onAction} />
+
+        <Pressable onPress={() => setLoginOpen(true)} hitSlop={8} style={styles.account}>
+          <Text style={[type.footnote, { color: t.secondary }]}>
+            讀不到貼文嗎？<Text style={{ color: t.accent }}>登入或切換 Threads 帳號</Text>
+          </Text>
+        </Pressable>
+      </ScrollView>
+
+      {/* Loads the post with the user's Threads session; never shown on screen. */}
+      {webViewProps && (
+        <WebView key={webViewKey} {...webViewProps} sharedCookiesEnabled style={styles.hiddenWeb} />
       )}
+
+      <LoginSheet
+        visible={loginOpen}
+        onClose={() => {
+          resumeAfterLogin.current = false;
+          setLoginOpen(false);
+        }}
+        onLoggedIn={onLoggedIn}
+      />
       <StatusBar style="auto" />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingTop: 60, paddingHorizontal: 16, backgroundColor: '#fff' },
-  input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 6, padding: 10 },
-  row: { flexDirection: 'row', justifyContent: 'space-around', marginVertical: 12 },
-  status: { marginBottom: 12 },
-  web: { flex: 1 },
+  screen: { flex: 1 },
+  content: { paddingHorizontal: 20, gap: 16 },
+  subtitle: { marginTop: -10 },
+  inputCard: { gap: 12 },
+  field: { flexDirection: 'row', alignItems: 'center', borderRadius: 12, paddingHorizontal: 12 },
+  input: { flex: 1, minHeight: 48, paddingVertical: 12 },
+  clear: { fontSize: 15, paddingLeft: 8 },
+  primary: { alignSelf: 'stretch' },
+  account: { alignSelf: 'center', paddingVertical: 8 },
+  hiddenWeb: { position: 'absolute', width: 1, height: 1, opacity: 0 },
 });

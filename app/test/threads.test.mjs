@@ -87,3 +87,14 @@ test('fileName picks an extension from the media type', () => {
   assert.equal(fileName('C', 1, { type: 'image', url: 'https://x/a.webp?s=1' }), 'threads_C_2.webp');
   assert.equal(fileName('C', 2, { type: 'image', url: 'https://x/a.jpg' }), 'threads_C_3.jpg');
 });
+
+test('isLoggedInUrl: only a regular threads.com page counts as logged in', async () => {
+  const { isLoggedInUrl } = await import('../src/threads.js');
+  assert.equal(isLoggedInUrl('https://www.threads.com/'), true);
+  assert.equal(isLoggedInUrl('https://www.threads.com/@someone/post/ABC'), true);
+  assert.equal(isLoggedInUrl('https://www.threads.com/login?show_choice_screen=false'), false);
+  assert.equal(isLoggedInUrl('https://www.threads.com/accounts/login/'), false);
+  assert.equal(isLoggedInUrl('https://www.instagram.com/accounts/login/'), false);
+  assert.equal(isLoggedInUrl('https://www.threads.com.evil.example/'), false);
+  assert.equal(isLoggedInUrl('about:blank'), false);
+});

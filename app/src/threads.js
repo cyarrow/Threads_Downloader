@@ -2,19 +2,22 @@
 // No React Native imports here so the logic can be unit-tested with plain Node.
 
 const URL_RE =
-  /https?:\/\/(?:www\.)?threads\.(?:net|com)\/(?:@([\w.]+)\/post|t)\/([A-Za-z0-9_-]+)/i;
+  /https?:\/\/(?:www\.)?threads\.(?:net|com)\/(?:@([\w.]+)\/post|(t|share))\/([A-Za-z0-9_-]+)/i;
 
 const MEDIA_TYPE = { IMAGE: 1, VIDEO: 2, CAROUSEL: 8 };
 
 // Finds the first Threads post link in arbitrary text (e.g. clipboard or share text).
+// Returns { id, code, url }: `id` identifies the link; `code` is the post shortcode,
+// or null for /share/ links, whose post is only known once the page redirects.
 export function parseThreadsUrl(text) {
   const m = typeof text === 'string' && text.match(URL_RE);
   if (!m) return null;
-  const [, user, code] = m;
-  const url = user
-    ? `https://www.threads.com/@${user}/post/${code}`
-    : `https://www.threads.com/t/${code}`;
-  return { code, url };
+  const [, user, kind, id] = m;
+  if (user) return { id, code: id, url: `https://www.threads.com/@${user}/post/${id}` };
+  if (kind.toLowerCase() === 'share') {
+    return { id, code: null, url: `https://www.threads.com/share/${id}/` };
+  }
+  return { id, code: id, url: `https://www.threads.com/t/${id}` };
 }
 
 function largest(list) {

@@ -14,8 +14,8 @@ export default function App() {
   const [input, setInput] = useState('');
   const [status, setStatus] = useState('複製 Threads 貼文連結後回到 App，會自動下載');
   const [webUrl, setWebUrl] = useState(null);
-  const target = useRef(null); // { code, url } while extracting, null otherwise
-  const lastCode = useRef(null);
+  const target = useRef(null); // { id, code, url } while extracting, null otherwise
+  const lastId = useRef(null);
   const webRef = useRef(null);
 
   const start = useCallback((text) => {
@@ -24,7 +24,7 @@ export default function App() {
       setStatus('不是有效的 Threads 貼文連結');
       return;
     }
-    lastCode.current = post.code;
+    lastId.current = post.id;
     target.current = post;
     setInput(post.url);
     setStatus('讀取貼文中…');
@@ -36,7 +36,7 @@ export default function App() {
     const check = async () => {
       const text = await Clipboard.getStringAsync();
       const post = parseThreadsUrl(text);
-      if (post && post.code !== lastCode.current) start(text);
+      if (post && post.id !== lastId.current) start(text);
     };
     check();
     const sub = AppState.addEventListener('change', (s) => s === 'active' && check());
@@ -44,26 +44,28 @@ export default function App() {
   }, [start]);
 
   const onLoadEnd = () => {
-    if (target.current) webRef.current?.injectJavaScript(collectScript(target.current.code));
+    const post = target.current;
+    if (post) webRef.current?.injectJavaScript(collectScript(post.id, post.code));
   };
 
   const onMessage = async (event) => {
     const post = target.current;
     const data = JSON.parse(event.nativeEvent.data);
-    if (!post || data.code !== post.code) return;
+    if (!post || data.id !== post.id) return;
     target.current = null;
 
-    const media = extractMedia(data.json, post.code, data.videos);
+    const code = data.code;
+    const media = code ? extractMedia(data.json, code, data.videos) : [];
     if (!media.length) {
       setStatus(
-        data.loggedOut || !data.json.length
+        data.loggedOut || !code || (!data.json.length && !data.videos.length)
           ? '讀不到貼文內容，請先按「登入 Threads」後再下載一次'
           : '這篇貼文沒有圖片或影片',
       );
       return;
     }
     try {
-      const n = await saveAll(post.code, media, (i, total) =>
+      const n = await saveAll(code, media, (i, total) =>
         setStatus(`下載中 ${i + 1}/${total}…`),
       );
       setStatus(`完成！已儲存 ${n} 個檔案到相簿`);

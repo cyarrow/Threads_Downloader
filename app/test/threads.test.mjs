@@ -18,14 +18,24 @@ const videoPost = {
 
 test('parseThreadsUrl handles .net/.com, /t/ links, and surrounding text', () => {
   assert.deepEqual(parseThreadsUrl('look https://www.threads.net/@some.user/post/ABC-_1?xmt=1 wow'), {
+    id: 'ABC-_1',
     code: 'ABC-_1',
     url: 'https://www.threads.com/@some.user/post/ABC-_1',
   });
   assert.deepEqual(parseThreadsUrl('https://threads.com/t/XYZ'), {
+    id: 'XYZ',
     code: 'XYZ',
     url: 'https://www.threads.com/t/XYZ',
   });
   assert.equal(parseThreadsUrl('https://instagram.com/p/ABC'), null);
+});
+
+test('parseThreadsUrl accepts the app\'s /share/ links without knowing the post code yet', () => {
+  assert.deepEqual(parseThreadsUrl('https://www.threads.com/share/L0RUsdZj1/'), {
+    id: 'L0RUsdZj1',
+    code: null,
+    url: 'https://www.threads.com/share/L0RUsdZj1/',
+  });
   assert.equal(parseThreadsUrl(undefined), null);
 });
 

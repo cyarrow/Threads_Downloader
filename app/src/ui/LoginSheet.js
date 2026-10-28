@@ -1,7 +1,8 @@
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { WebView } from 'react-native-webview';
 import { isLoggedInUrl } from '../threads';
-import { type, useTheme } from './theme';
+import { TOUCH, type, useTheme } from './theme';
 
 const LOGIN_URL = 'https://www.threads.com/login';
 
@@ -24,15 +25,20 @@ export function LoginSheet({ visible, onClose, onLoggedIn }) {
     >
       <View style={[styles.sheet, { backgroundColor: t.card }]}>
         <View style={[styles.header, { borderBottomColor: t.separator }]}>
-          <Pressable onPress={onClose} hitSlop={12} accessibilityRole="button">
+          <Pressable onPress={onClose} accessibilityRole="button" style={styles.headerButton}>
             <Text style={[type.body, { color: t.accent }]}>取消</Text>
           </Pressable>
-          <Text style={[type.headline, { color: t.label }]}>登入 Threads</Text>
-          <View style={styles.spacer} />
+          <Text style={[type.headline, { color: t.label }]} accessibilityRole="header">
+            登入 Threads
+          </Text>
+          <View style={styles.headerButton} />
         </View>
-        <Text style={[type.footnote, styles.note, { color: t.secondary }]}>
-          登入只會保存在這支手機上，用來讀取你看得到的貼文。
-        </Text>
+        <View style={styles.note}>
+          <Ionicons name="lock-closed-outline" size={14} color={t.secondary} />
+          <Text style={[type.footnote, styles.noteText, { color: t.secondary }]}>
+            登入只會保存在這支手機上，用來讀取你看得到的貼文。
+          </Text>
+        </View>
         {visible && (
           <WebView
             source={{ uri: LOGIN_URL }}
@@ -52,12 +58,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 12,
+    paddingHorizontal: 8,
+    paddingTop: 8,
+    paddingBottom: 4,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  spacer: { width: 34 },
-  note: { paddingHorizontal: 16, paddingVertical: 10 },
+  headerButton: { minHeight: TOUCH, minWidth: 64, paddingHorizontal: 8, justifyContent: 'center' },
+  note: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 10 },
+  noteText: { flex: 1 },
   web: { flex: 1 },
 });

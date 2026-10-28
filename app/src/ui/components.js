@@ -1,18 +1,13 @@
 import { useEffect, useState } from 'react';
-import {
-  ActivityIndicator,
-  Animated,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { summary } from '../historyModel';
 import { spring, useReduceMotion } from './motion';
-import { type, useTheme } from './theme';
+import { TOUCH, type, useTheme } from './theme';
 
 // Button that reacts on press-down (not release) with a critically damped spring.
-export function Button({ title, onPress, variant = 'filled', disabled, style }) {
+// variant: 'filled' (primary action) | 'tinted' (secondary action in a card).
+export function Button({ title, icon, onPress, variant = 'filled', disabled, style }) {
   const t = useTheme();
   const reduce = useReduceMotion();
   const scale = useState(() => new Animated.Value(1))[0];
@@ -20,6 +15,7 @@ export function Button({ title, onPress, variant = 'filled', disabled, style }) 
     reduce ? scale.setValue(1) : Animated.spring(scale, { toValue: v, ...spring(0.25) }).start();
 
   const filled = variant === 'filled';
+  const color = filled ? t.onAccent : t.accent;
   return (
     <Pressable
       onPress={onPress}
@@ -27,20 +23,40 @@ export function Button({ title, onPress, variant = 'filled', disabled, style }) 
       onPressOut={to(1)}
       disabled={disabled}
       accessibilityRole="button"
-      hitSlop={8}
+      accessibilityState={{ disabled: !!disabled }}
     >
       {({ pressed }) => (
         <Animated.View
           style={[
             styles.button,
-            filled ? { backgroundColor: t.accent } : { backgroundColor: t.fill },
+            { backgroundColor: filled ? t.accentFill : t.accentSoft },
             { transform: [{ scale }], opacity: disabled ? 0.4 : pressed ? 0.85 : 1 },
             style,
           ]}
         >
-          <Text style={[type.headline, { color: filled ? t.onAccent : t.accent }]}>{title}</Text>
+          {icon && <Ionicons name={icon} size={20} color={color} />}
+          <Text style={[type.headline, { color }]}>{title}</Text>
         </Animated.View>
       )}
+    </Pressable>
+  );
+}
+
+// Icon-only control with a full 44×44 target and a required spoken label.
+export function IconButton({ icon, label, onPress, color, size = 22, filled, disabled, style }) {
+  const t = useTheme();
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled: !!disabled }}
+      style={({ pressed }) => [styles.iconButton, { opacity: disabled ? 0.4 : pressed ? 0.6 : 1 }, style]}
+    >
+      <View style={filled && [styles.iconFill, { backgroundColor: t.accentSoft }]}>
+        <Ionicons name={icon} size={size} color={color || t.accent} />
+      </View>
     </Pressable>
   );
 }
@@ -50,12 +66,8 @@ export function Card({ children, style }) {
   return <View style={[styles.card, { backgroundColor: t.card }, style]}>{children}</View>;
 }
 
-function Badge({ color, glyph }) {
-  return (
-    <View style={[styles.badge, { backgroundColor: color }]}>
-      <Text style={styles.badgeGlyph}>{glyph}</Text>
-    </View>
-  );
+function StatusIcon({ name, color }) {
+  return <Ionicons name={name} size={30} color={color} accessibilityElementsHidden importantForAccessibility="no" />;
 }
 
 function ProgressBar({ value }) {
@@ -70,11 +82,15 @@ function ProgressBar({ value }) {
     anim.start();
   }, [value, reduce, width]);
   return (
-    <View style={[styles.track, { backgroundColor: t.fill }]}>
+    <View
+      style={[styles.track, { backgroundColor: t.fill }]}
+      accessibilityRole="progressbar"
+      accessibilityValue={{ min: 0, max: 100, now: Math.round(value * 100) }}
+    >
       <Animated.View
         style={[
           styles.bar,
-          { backgroundColor: t.accent },
+          { backgroundColor: t.accentFill },
           { width: width.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }) },
         ]}
       />
@@ -82,8 +98,9 @@ function ProgressBar({ value }) {
   );
 }
 
-// One card that morphs between idle / working / done / error so the user always
-// knows what is happening and what they can do next.
+// One card that morphs between working / done / error so the user always knows
+// what is happening and what they can do next. Idle shows nothing (or the
+// onboarding steps for first-time users, rendered by the screen).
 export function StatusCard({ state, onAction }) {
   const t = useTheme();
   const reduce = useReduceMotion();
@@ -95,6 +112,8 @@ export function StatusCard({ state, onAction }) {
     Animated.spring(appear, { toValue: 1, ...spring(0.35) }).start();
   }, [state.phase, reduce, appear]);
 
+  if (state.phase === 'idle') return null;
+
   const animated = {
     opacity: appear,
     transform: [{ scale: appear.interpolate({ inputRange: [0.6, 1], outputRange: [0.98, 1] }) }],
@@ -105,8 +124,8 @@ export function StatusCard({ state, onAction }) {
     case 'loading':
       body = (
         <Row icon={<ActivityIndicator color={t.secondary} />}>
-          <Text style={[type.headline, { color: t.label }]}>正在讀取貼文</Text>
-          <Text style={[type.subhead, { color: t.secondary }]}>找出影片與圖片…</Text>
+          <Title>正在讀取貼文</Title>
+          <Detail>找出影片與圖片…</Detail>
         </Row>
       );
       break;
@@ -114,10 +133,10 @@ export function StatusCard({ state, onAction }) {
       body = (
         <>
           <Row icon={<ActivityIndicator color={t.secondary} />}>
-            <Text style={[type.headline, { color: t.label }]}>
+            <Title>
               正在下載 {state.done + 1} / {state.total}
-            </Text>
-            <Text style={[type.subhead, { color: t.secondary }]}>完成後會存到相簿</Text>
+            </Title>
+            <Detail>完成後會存到「Threads」相簿</Detail>
           </Row>
           <ProgressBar value={state.done / state.total} />
         </>
@@ -125,37 +144,34 @@ export function StatusCard({ state, onAction }) {
       break;
     case 'choosing':
       body = (
-        <Row icon={<ActivityIndicator color={t.secondary} />}>
-          <Text style={[type.headline, { color: t.label }]}>選擇要下載的項目</Text>
-          <Text style={[type.subhead, { color: t.secondary }]}>
-            這篇貼文有 {state.post.media.length} 個項目
-          </Text>
+        <Row icon={<StatusIcon name="images-outline" color={t.accent} />}>
+          <Title>選擇要下載的項目</Title>
+          <Detail>這篇貼文有 {state.post.media.length} 個項目</Detail>
         </Row>
       );
       break;
     case 'done':
       body = (
-        <Row icon={<Badge color={t.success} glyph="✓" />}>
-          <Text style={[type.headline, { color: t.label }]}>已存到「Threads」相簿</Text>
-          <Text style={[type.subhead, { color: t.secondary }]}>
+        <Row icon={<StatusIcon name="checkmark-circle" color={t.success} />}>
+          <Title>已存到「Threads」相簿</Title>
+          <Detail>
             {summary(state)}
             {state.author ? ` · @${state.author}` : ''}
-          </Text>
+          </Detail>
         </Row>
       );
       break;
     case 'error':
       body = (
         <>
-          <Row icon={<Badge color={t.danger} glyph="!" />}>
-            <Text style={[type.headline, { color: t.label }]}>{state.title}</Text>
-            {!!state.message && (
-              <Text style={[type.subhead, { color: t.secondary }]}>{state.message}</Text>
-            )}
+          <Row icon={<StatusIcon name="alert-circle" color={t.danger} />}>
+            <Title>{state.title}</Title>
+            {!!state.message && <Detail>{state.message}</Detail>}
           </Row>
           {state.action && (
             <Button
               title={state.action.label}
+              icon={state.action.kind === 'login' ? 'person-circle-outline' : 'refresh'}
               variant="tinted"
               onPress={() => onAction(state.action.kind)}
               style={styles.cardAction}
@@ -165,21 +181,42 @@ export function StatusCard({ state, onAction }) {
       );
       break;
     default:
-      body = (
-        <>
-          <Text style={[type.headline, { color: t.label, marginBottom: 12 }]}>一鍵下載</Text>
-          <Step n="1" text="在 Threads 貼文點「分享」" />
-          <Step n="2" text="選擇「Threads 下載」" />
-          <Step n="3" text="存好後自動回到 Threads" />
-        </>
-      );
+      return null;
   }
 
   return (
-    <Animated.View style={animated}>
+    <Animated.View style={animated} accessibilityLiveRegion="polite">
       <Card>{body}</Card>
     </Animated.View>
   );
+}
+
+// First-run guide; the screen hides it once the user has a download history.
+export function Onboarding() {
+  const t = useTheme();
+  return (
+    <Card>
+      <Title>一鍵下載</Title>
+      <View style={styles.steps}>
+        <Step n="1" icon="share-outline" text="在 Threads 貼文點「分享」" />
+        <Step n="2" icon="download-outline" text="選擇「Threads 下載」" />
+        <Step n="3" icon="checkmark-circle" text="存好後自動回到 Threads" />
+      </View>
+      <Text style={[type.footnote, styles.stepsNote, { color: t.secondary }]}>
+        找不到的話，在分享選單最右邊點「更多」。
+      </Text>
+    </Card>
+  );
+}
+
+function Title({ children }) {
+  const t = useTheme();
+  return <Text style={[type.headline, { color: t.label }]}>{children}</Text>;
+}
+
+function Detail({ children }) {
+  const t = useTheme();
+  return <Text style={[type.subhead, { color: t.secondary }]}>{children}</Text>;
 }
 
 function Row({ icon, children }) {
@@ -191,12 +228,12 @@ function Row({ icon, children }) {
   );
 }
 
-function Step({ n, text }) {
+function Step({ n, icon, text }) {
   const t = useTheme();
   return (
-    <View style={styles.step}>
-      <View style={[styles.stepNum, { backgroundColor: t.fill }]}>
-        <Text style={[type.footnote, { color: t.accent, fontWeight: '600' }]}>{n}</Text>
+    <View style={styles.step} accessible accessibilityLabel={`第 ${n} 步：${text}`}>
+      <View style={[styles.stepIcon, { backgroundColor: t.accentSoft }]}>
+        <Ionicons name={icon} size={18} color={t.accent} />
       </View>
       <Text style={[type.body, { color: t.label, flex: 1 }]}>{text}</Text>
     </View>
@@ -208,18 +245,22 @@ const styles = StyleSheet.create({
     minHeight: 50,
     borderRadius: 14,
     paddingHorizontal: 20,
+    flexDirection: 'row',
+    gap: 8,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  iconButton: { minWidth: TOUCH, minHeight: TOUCH, alignItems: 'center', justifyContent: 'center' },
+  iconFill: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
   card: { borderRadius: 16, padding: 16 },
   cardAction: { marginTop: 14 },
   row: { flexDirection: 'row', alignItems: 'center' },
   rowIcon: { width: 32, alignItems: 'center', marginRight: 12 },
   rowText: { flex: 1, gap: 2 },
-  badge: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  badgeGlyph: { color: '#fff', fontSize: 16, fontWeight: '700' },
   track: { height: 6, borderRadius: 3, marginTop: 14, overflow: 'hidden' },
   bar: { height: 6, borderRadius: 3 },
-  step: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 6 },
-  stepNum: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  steps: { marginTop: 8 },
+  step: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 7 },
+  stepIcon: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  stepsNote: { marginTop: 8 },
 });

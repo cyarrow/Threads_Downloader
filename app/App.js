@@ -44,25 +44,36 @@ function Home() {
   const insets = useSafeAreaInsets();
   const { hasShareIntent, shareIntent, resetShareIntent } = useShareIntent();
   const history = useHistory();
-  const { state, start, retry, choose, cancelChoice, webViewProps, webViewKey, busy } =
+  const { state, queued, start, retry, skip, choose, cancelChoice, webViewProps, webViewKey, busy } =
     useDownloader({ onSaved: history.add });
   const [link, setLink] = useState('');
   const [fieldError, setFieldError] = useState(null);
+  const [fieldNote, setFieldNote] = useState(null);
   const [loginOpen, setLoginOpen] = useState(false);
   const [update, setUpdate] = useState(null);
   const resumeAfterLogin = useRef(false);
 
   // Typed or pasted links are checked right here so the error sits under the field;
   // shared links go straight to the downloader, which reports problems in the card.
+  // While a download is running, new links join the queue instead of replacing it.
   const download = (text, options) => {
     const post = parseThreadsUrl(text);
     if (!post && !options?.fromShare) {
       setFieldError(text.trim() ? '這不是 Threads 貼文連結' : '剪貼簿裡沒有 Threads 連結');
+      setFieldNote(null);
       return;
     }
     setFieldError(null);
-    setLink(post ? post.url : text);
-    start(text, options);
+    setLink('');
+    const result = start(text, options);
+    const note = {
+      queued: '已加入排隊，前面的下載完成後就會開始',
+      duplicate: '這篇已經在下載或排隊中',
+    }[result];
+    setFieldNote(note || null);
+    if (note && options?.fromShare && Platform.OS === 'android') {
+      ToastAndroid.show(note, ToastAndroid.SHORT);
+    }
   };
 
   // "Share → Threads 下載" from the Threads app lands here and starts right away.
@@ -73,13 +84,17 @@ function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasShareIntent]);
 
-  // After a share-started download succeeds, confirm with a toast and step out of
-  // the way so the user lands back in Threads. Errors keep the app open.
+  // After a share-started download succeeds, confirm with a toast; once nothing is
+  // left in the queue, step out of the way so the user lands back in Threads.
+  // Errors keep the app open.
   useEffect(() => {
     if (state.phase !== 'done' || !state.fromShare || Platform.OS !== 'android') return;
     ToastAndroid.show(`已存到相簿：${summary(state)}`, ToastAndroid.SHORT);
+    if (queued > 0) return;
     const timer = setTimeout(() => BackHandler.exitApp(), RETURN_DELAY_MS);
     return () => clearTimeout(timer);
+    // Only react to a new result, not to the queue shrinking as the next item starts.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
 
   // The only way past a login wall is logging in, so offer the sheet right away
@@ -96,7 +111,11 @@ function Home() {
     if (releasesRepo && buildNumber) checkForUpdate(releasesRepo, buildNumber).then(setUpdate);
   }, []);
 
-  const onAction = (kind) => (kind === 'login' ? setLoginOpen(true) : retry());
+  const onAction = (kind) => {
+    if (kind === 'login') setLoginOpen(true);
+    else if (kind === 'skip') skip();
+    else retry();
+  };
 
   const onLoggedIn = () => {
     setLoginOpen(false);
@@ -149,7 +168,8 @@ function Home() {
               value={link}
               onChangeText={(v) => {
                 setLink(v);
-                if (fieldError) setFieldError(null);
+                setFieldError(null);
+                setFieldNote(null);
               }}
               placeholder="https://www.threads.com/…"
               placeholderTextColor={t.secondary}
@@ -161,9 +181,8 @@ function Home() {
               keyboardType="url"
               returnKeyType="go"
               onSubmitEditing={() => download(link)}
-              editable={!busy}
             />
-            {!!link && !busy && (
+            {!!link && (
               <IconButton
                 icon="close-circle"
                 size={20}
@@ -179,7 +198,12 @@ function Home() {
           {fieldError ? (
             <View style={styles.helper} accessibilityLiveRegion="polite">
               <Ionicons name="alert-circle" size={16} color={t.danger} />
-              <Text style={[type.footnote, { color: t.danger }]}>{fieldError}</Text>
+              <Text style={[type.footnote, styles.helperFlex, { color: t.danger }]}>{fieldError}</Text>
+            </View>
+          ) : fieldNote ? (
+            <View style={styles.helper} accessibilityLiveRegion="polite">
+              <Ionicons name="time-outline" size={16} color={t.secondary} />
+              <Text style={[type.footnote, styles.helperFlex, { color: t.secondary }]}>{fieldNote}</Text>
             </View>
           ) : (
             <Text style={[type.footnote, styles.helperText, { color: t.secondary }]}>
@@ -187,20 +211,22 @@ function Home() {
             </Text>
           )}
           <Button
-            title={link ? '下載' : '貼上連結並下載'}
-            icon={link ? 'download-outline' : 'clipboard-outline'}
+            title={busy ? (link ? '加入排隊' : '貼上並加入排隊') : link ? '下載' : '貼上連結並下載'}
+            icon={busy ? 'add-circle-outline' : link ? 'download-outline' : 'clipboard-outline'}
             onPress={link ? () => download(link) : pasteAndDownload}
-            disabled={busy}
           />
         </Card>
 
-        {firstRun ? <Onboarding /> : <StatusCard state={state} onAction={onAction} />}
+        {firstRun ? (
+          <Onboarding />
+        ) : (
+          <StatusCard state={state} queued={queued} onAction={onAction} />
+        )}
 
         <HistoryList
           items={history.items}
           onRedownload={(url) => download(url)}
           onClear={history.clear}
-          disabled={busy}
         />
       </ScrollView>
 
@@ -241,5 +267,6 @@ const styles = StyleSheet.create({
   input: { flex: 1, minWidth: 0, minHeight: 48, paddingVertical: 12 },
   helper: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 18 },
   helperText: { minHeight: 18 },
+  helperFlex: { flex: 1 },
   hiddenWeb: { position: 'absolute', width: 1, height: 1, opacity: 0 },
 });

@@ -101,7 +101,7 @@ function ProgressBar({ value }) {
 // One card that morphs between working / done / error so the user always knows
 // what is happening and what they can do next. Idle shows nothing (or the
 // onboarding steps for first-time users, rendered by the screen).
-export function StatusCard({ state, onAction }) {
+export function StatusCard({ state, queued = 0, onAction }) {
   const t = useTheme();
   const reduce = useReduceMotion();
   const appear = useState(() => new Animated.Value(1))[0];
@@ -177,6 +177,15 @@ export function StatusCard({ state, onAction }) {
               style={styles.cardAction}
             />
           )}
+          {queued > 0 && (
+            <Button
+              title={`跳過這篇（還有 ${queued} 篇）`}
+              icon="play-skip-forward-outline"
+              variant="tinted"
+              onPress={() => onAction('skip')}
+              style={styles.cardAction}
+            />
+          )}
         </>
       );
       break;
@@ -186,7 +195,15 @@ export function StatusCard({ state, onAction }) {
 
   return (
     <Animated.View style={animated} accessibilityLiveRegion="polite">
-      <Card>{body}</Card>
+      <Card>
+        {body}
+        {queued > 0 && state.phase !== 'error' && (
+          <View style={[styles.queue, { borderTopColor: t.separator }]}>
+            <Ionicons name="layers-outline" size={16} color={t.secondary} />
+            <Text style={[type.footnote, { color: t.secondary }]}>還有 {queued} 篇排隊中</Text>
+          </View>
+        )}
+      </Card>
     </Animated.View>
   );
 }
@@ -259,6 +276,14 @@ const styles = StyleSheet.create({
   rowText: { flex: 1, gap: 2 },
   track: { height: 6, borderRadius: 3, marginTop: 14, overflow: 'hidden' },
   bar: { height: 6, borderRadius: 3 },
+  queue: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 14,
+    paddingTop: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
   steps: { marginTop: 8 },
   step: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 7 },
   stepIcon: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },

@@ -5,7 +5,8 @@ import { upsertHistory } from './historyModel';
 const historyFile = () => new File(Paths.document, 'history.json');
 const thumbDir = () => new Directory(Paths.document, 'thumbs');
 
-async function load() {
+// Also read once by the collection store to migrate old downloads into cards.
+export async function loadHistory() {
   try {
     const file = historyFile();
     return file.exists ? JSON.parse(await file.text()) : [];
@@ -47,7 +48,7 @@ export function useHistory() {
   const [items, setItems] = useState([]);
 
   useEffect(() => {
-    load().then(setItems);
+    loadHistory().then(setItems);
   }, []);
 
   const add = useCallback((entry) => {

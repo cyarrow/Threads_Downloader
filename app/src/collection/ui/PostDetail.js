@@ -1,8 +1,11 @@
 import { useRef, useState } from 'react';
 import { FlatList, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Image } from 'expo-image';
+import { useEventListener } from 'expo';
+import { VideoView, useVideoPlayer } from 'expo-video';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { imageSource } from '../media';
 import { tagHue, tagLabel } from '../tagModel';
 import { TOUCH, font, icon, radius, space, useCollectionTheme } from '../tokens';
 import { IconButton, PrimaryButton, SecondaryButton, TagChip } from './base';
@@ -11,14 +14,62 @@ const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
 function formatDate(ts) {
   const d = new Date(ts);
-  return `${d.getMonth() + 1}月${d.getDate()}日`;
+  return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
 }
 
-function MediaPager({ media, width }) {
+// Plays only after the user taps play (never autoplays).
+function InlineVideo({ uri, width, height, onError }) {
+  const player = useVideoPlayer(imageSource(uri), (p) => {
+    p.loop = false;
+    p.play();
+  });
+  // Expired links surface as a player error; let the page re-read the post.
+  useEventListener(player, 'statusChange', ({ status }) => {
+    if (status === 'error') onError?.();
+  });
+  return <VideoView player={player} style={{ width, height }} contentFit="contain" nativeControls />;
+}
+
+function MediaItem({ item, index, width, height, placeholder, onStale }) {
+  const t = useCollectionTheme();
+  const [playing, setPlaying] = useState(false);
+  const isVideo = item.type === 'video';
+  if (isVideo && playing) {
+    return <InlineVideo uri={item.url} width={width} height={height} onError={onStale} />;
+  }
+  return (
+    <View style={{ width, height, backgroundColor: t.muted }}>
+      <Image
+        source={imageSource(isVideo ? item.poster : item.url)}
+        placeholder={index === 0 ? placeholder : undefined}
+        placeholderContentFit="contain"
+        style={StyleSheet.absoluteFill}
+        contentFit="contain"
+        transition={150}
+        onError={onStale}
+        accessibilityLabel={`第 ${index + 1} 項${isVideo ? '影片' : '圖片'}`}
+      />
+      {isVideo && (
+        <Pressable
+          onPress={() => setPlaying(true)}
+          accessibilityRole="button"
+          accessibilityLabel="播放影片"
+          style={styles.play}
+        >
+          <View style={[styles.playCircle, { backgroundColor: t.badge }]}>
+            <Ionicons name="play" size={28} color={t.onBadge} />
+          </View>
+        </Pressable>
+      )}
+    </View>
+  );
+}
+
+function MediaPager({ media, width, placeholder, onStale }) {
   const t = useCollectionTheme();
   const [page, setPage] = useState(0);
   const list = useRef(null);
-  const height = width * clamp(media[0].ratio, 0.75, 1.25);
+  const height = width * clamp(media[0].ratio || 1, 0.75, 1.25);
   const go = (i) => {
     list.current?.scrollToIndex({ index: i, animated: true });
     setPage(i);
@@ -35,26 +86,12 @@ function MediaPager({ media, width }) {
         onMomentumScrollEnd={(e) => setPage(Math.round(e.nativeEvent.contentOffset.x / width))}
         getItemLayout={(_, i) => ({ length: width, offset: width * i, index: i })}
         renderItem={({ item, index }) => (
-          <View style={{ width, height, backgroundColor: t.muted }}>
-            <Image
-              source={item.image}
-              style={StyleSheet.absoluteFill}
-              contentFit="contain"
-              accessibilityLabel={`第 ${index + 1} 項${item.type === 'video' ? '影片' : '圖片'}`}
-            />
-            {item.type === 'video' && (
-              <View style={styles.play} pointerEvents="none">
-                <View style={[styles.playCircle, { backgroundColor: t.badge }]}>
-                  <Ionicons name="play" size={28} color={t.onBadge} />
-                </View>
-              </View>
-            )}
-          </View>
+          <MediaItem item={item} index={index} width={width} height={height} placeholder={placeholder} onStale={onStale} />
         )}
       />
       {media.length > 1 && (
         <>
-          <View style={[styles.counter, { backgroundColor: t.badge }]}>
+          <View style={[styles.counter, { backgroundColor: t.badge }]} pointerEvents="none">
             <Text style={[font.caption, { color: t.onBadge }]}>
               {page + 1}/{media.length}
             </Text>
@@ -81,27 +118,48 @@ function MediaPager({ media, width }) {
 }
 
 // Detail page: everything the long-press menu offers also has a visible button here.
-export function PostDetail({ post, index, onBack, onAction }) {
+// `onStale` is called when a media link fails (links expire) so the post gets re-read.
+export function PostDetail({ post, index, onBack, onAction, onStale }) {
   const t = useCollectionTheme();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
+  const staleOnce = useRef(false);
   const tags = post.tagIds.map((id) => index.byId[id]).filter(Boolean);
   const deleted = post.status === 'sourceDeleted';
   const act = (kind) => () => onAction(kind, post);
+  const cover = imageSource(post.cover);
+  const reportStale = () => {
+    if (staleOnce.current) return;
+    staleOnce.current = true;
+    onStale?.(post);
+  };
+  const updating = !post.media.length && post.status === 'ready' && !post.fetchedAt;
 
   return (
     <View style={[styles.screen, { backgroundColor: t.background, paddingTop: insets.top }]}>
       <View style={[styles.topBar, { borderBottomColor: t.border }]}>
         <IconButton name="arrow-back" label="返回" onPress={onBack} />
         <Text style={[font.headline, styles.topTitle, { color: t.foreground }]} numberOfLines={1} accessibilityRole="header">
-          @{post.author}
+          {post.author ? `@${post.author}` : 'Threads 貼文'}
         </Text>
         <IconButton name="ellipsis-vertical" label="更多：在 Threads 開啟、刪除" onPress={act('more')} />
       </View>
 
       <ScrollView contentContainerStyle={{ paddingBottom: space.xl }}>
-        {post.media.length > 0 && <MediaPager media={post.media} width={width} />}
+        {post.media.length > 0 ? (
+          <MediaPager media={post.media} width={width} placeholder={cover} onStale={reportStale} />
+        ) : (
+          cover && (
+            <Image source={cover} style={{ width, height: width }} contentFit="contain" accessibilityLabel="封面" />
+          )
+        )}
         <View style={styles.body}>
+          {updating && (
+            <View style={[styles.notice, { backgroundColor: t.muted }]} accessibilityLiveRegion="polite">
+              <Ionicons name="refresh" size={icon.md} color={t.mutedForeground} />
+              <Text style={[font.meta, { color: t.mutedForeground, flex: 1 }]}>這是舊的下載紀錄，正在補上完整內容…</Text>
+            </View>
+          )}
           {deleted && (
             <View style={[styles.notice, { backgroundColor: t.muted }]}>
               <Ionicons name="cloud-offline-outline" size={icon.md} color={t.mutedForeground} />
@@ -109,7 +167,9 @@ export function PostDetail({ post, index, onBack, onAction }) {
             </View>
           )}
           {!!post.caption && (
-            <Text style={[post.media.length ? font.body : font.quote, { color: t.foreground }]}>{post.caption}</Text>
+            <Text style={[post.media.length || cover ? font.content : font.quote, { color: t.foreground }]} selectable>
+              {post.caption}
+            </Text>
           )}
           <Text style={[font.meta, { color: t.mutedForeground }]}>收藏於 {formatDate(post.savedAt)}</Text>
 

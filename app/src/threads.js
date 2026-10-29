@@ -66,21 +66,31 @@ function thumbnail(candidates) {
   return pick && pick.url;
 }
 
+// Height / width, rounded; null when the dimensions are unknown.
+function ratioOf(w, h) {
+  return w && h ? Math.round((h / w) * 1000) / 1000 : null;
+}
+
+// `poster` is the full-resolution still (the image itself, or a video's cover);
+// `ratio` comes from whichever of the video / image carries dimensions.
 function itemMedia(item) {
   const candidates = item.image_versions2 && item.image_versions2.candidates;
   const thumb = thumbnail(candidates);
+  const image = largest(candidates);
+  const poster = image && image.url;
   const video = largest(item.video_versions);
   if (video && video.url) {
-    return { type: 'video', url: video.url, width: video.width, height: video.height, thumb };
+    const ratio = ratioOf(video.width, video.height) || ratioOf(image?.width, image?.height);
+    return { type: 'video', url: video.url, width: video.width, height: video.height, thumb, poster, ratio };
   }
-  const image = largest(candidates);
   if (image && image.url) {
-    return { type: 'image', url: image.url, width: image.width, height: image.height, thumb };
+    const ratio = ratioOf(image.width, image.height);
+    return { type: 'image', url: image.url, width: image.width, height: image.height, thumb, poster, ratio };
   }
   return null;
 }
 
-// Returns [{ type: 'video' | 'image', url, width, height, thumb }] for a post object.
+// Returns [{ type: 'video' | 'image', url, width, height, thumb, poster, ratio }] for a post object.
 export function mediaFromPost(post) {
   if (!post) return [];
   const items =
@@ -90,9 +100,14 @@ export function mediaFromPost(post) {
   return items.map(itemMedia).filter(Boolean);
 }
 
+function domVideos(urls) {
+  return [...new Set(urls)].filter((u) => /^https?:/.test(u)).map((url) => ({ type: 'video', url }));
+}
+
 // `jsonTexts`: contents of the page's <script type="application/json"> tags.
 // `domVideoUrls`: <video> sources seen in the rendered page, used as a fallback.
-// Returns { author, caption, media }; author/caption are null when unknown.
+// Returns { found, author, caption, media }. `found` means the post itself was in
+// the page data, so a text-only post comes back with found: true and no media.
 export function extractPost(jsonTexts, code, domVideoUrls = []) {
   for (const text of jsonTexts) {
     if (!text.includes(code)) continue;
@@ -103,19 +118,17 @@ export function extractPost(jsonTexts, code, domVideoUrls = []) {
       continue;
     }
     const post = findPost(root, code);
-    const media = mediaFromPost(post);
-    if (media.length) {
+    if (post) {
+      const media = mediaFromPost(post);
       return {
+        found: true,
         author: (post.user && post.user.username) || null,
         caption: (post.caption && post.caption.text) || null,
-        media,
+        media: media.length ? media : domVideos(domVideoUrls),
       };
     }
   }
-  const media = [...new Set(domVideoUrls)]
-    .filter((u) => /^https?:/.test(u))
-    .map((url) => ({ type: 'video', url }));
-  return { author: null, caption: null, media };
+  return { found: false, author: null, caption: null, media: domVideos(domVideoUrls) };
 }
 
 export function fileName(code, index, media) {

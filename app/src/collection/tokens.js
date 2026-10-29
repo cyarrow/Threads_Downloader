@@ -1,6 +1,9 @@
 // Design tokens for the collection feature. Source of truth:
 // design-system/threads-collection/MASTER.md (verify colors with contrast_check.py).
 import { Platform, useColorScheme } from 'react-native';
+import { TAG_COLORS } from './palette.js';
+
+export { TAG_COLORS };
 
 const light = {
   background: '#FFFBEB',
@@ -38,19 +41,6 @@ const dark = {
   onBadge: '#FFFFFF',
 };
 
-// Tag hues: parent tags pick one, child tags inherit it. slate is reserved for 未分類.
-export const TAG_COLORS = {
-  rose: { lightBg: '#FFE4E6', lightText: '#9F1239', darkText: '#FDA4AF', dot: '#F43F5E' },
-  orange: { lightBg: '#FFEDD5', lightText: '#9A3412', darkText: '#FDBA74', dot: '#F97316' },
-  green: { lightBg: '#DCFCE7', lightText: '#166534', darkText: '#86EFAC', dot: '#22C55E' },
-  teal: { lightBg: '#CCFBF1', lightText: '#115E59', darkText: '#5EEAD4', dot: '#14B8A6' },
-  sky: { lightBg: '#E0F2FE', lightText: '#075985', darkText: '#7DD3FC', dot: '#0EA5E9' },
-  indigo: { lightBg: '#E0E7FF', lightText: '#3730A3', darkText: '#A5B4FC', dot: '#6366F1' },
-  violet: { lightBg: '#F3E8FF', lightText: '#6B21A8', darkText: '#D8B4FE', dot: '#A855F7' },
-  pink: { lightBg: '#FCE7F3', lightText: '#9D174D', darkText: '#F9A8D4', dot: '#EC4899' },
-  slate: { lightBg: '#F1F5F9', lightText: '#334155', darkText: '#CBD5E1', dot: '#64748B' },
-};
-
 // Chip colors for a tag hue in the current scheme; selected chips invert to a
 // solid fill and must also show a checkmark (color is never the only signal).
 export function tagColors(hue, scheme, selected) {
@@ -70,13 +60,21 @@ export function useCollectionTheme() {
   return { ...(scheme === 'dark' ? dark : light), scheme };
 }
 
+// LXGW WenKai TC (subset, see app/assets/fonts): a regular-script face with a
+// light handwritten warmth. Used for headings and the posts' own words; small
+// functional text (labels, chips, meta, inputs) stays in the system sans.
+// Android registers it as an XML family "WenKai" with 400 and 700 (app.json).
+export const BRAND_FONT = Platform.select({ ios: 'LXGW WenKai TC', default: 'WenKai' });
+
 export const font = {
-  display: { fontSize: 28, lineHeight: 34, fontWeight: '700', letterSpacing: -0.4 },
-  title: { fontSize: 20, lineHeight: 26, fontWeight: '700', letterSpacing: -0.2 },
+  display: { fontSize: 30, lineHeight: 36, fontWeight: '700', fontFamily: BRAND_FONT },
+  title: { fontSize: 21, lineHeight: 28, fontWeight: '700', fontFamily: BRAND_FONT },
   headline: { fontSize: 17, lineHeight: 22, fontWeight: '600' },
   body: { fontSize: 16, lineHeight: 24 },
-  card: { fontSize: 15, lineHeight: 22 },
-  quote: { fontSize: 17, lineHeight: 26, fontFamily: 'serif' },
+  content: { fontSize: 17, lineHeight: 27, fontFamily: BRAND_FONT },
+  card: { fontSize: 16, lineHeight: 23, fontFamily: BRAND_FONT },
+  cardFeatured: { fontSize: 18, lineHeight: 26, fontWeight: '700', fontFamily: BRAND_FONT },
+  quote: { fontSize: 18, lineHeight: 28, fontFamily: BRAND_FONT },
   label: { fontSize: 14, lineHeight: 20, fontWeight: '500' },
   meta: { fontSize: 13, lineHeight: 18 },
   caption: { fontSize: 12, lineHeight: 16, fontWeight: '500' },

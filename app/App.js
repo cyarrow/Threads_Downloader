@@ -1,272 +1,383 @@
-import { useEffect, useRef, useState } from 'react';
-import {
-  BackHandler,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  ToastAndroid,
-  View,
-} from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { BackHandler, Linking, Platform, StyleSheet, ToastAndroid, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as Clipboard from 'expo-clipboard';
 import Constants from 'expo-constants';
-import { Ionicons } from '@expo/vector-icons';
 import { useShareIntent } from 'expo-share-intent';
-import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import { useDownloader } from './src/useDownloader';
-import { useHistory } from './src/history';
 import { summary } from './src/historyModel';
 import { parseThreadsUrl } from './src/threads';
 import { checkForUpdate } from './src/updates';
-import { Button, Card, IconButton, Onboarding, StatusCard } from './src/ui/components';
-import { HistoryList } from './src/ui/HistoryList';
-import { LoginSheet } from './src/ui/LoginSheet';
-import { PickerSheet } from './src/ui/PickerSheet';
-import { UpdateCard } from './src/ui/UpdateCard';
-import { type, useTheme } from './src/ui/theme';
+import { CollectionProvider, useCollection } from './src/collection/store';
+import { useBrandFont } from './src/collection/fonts';
+import { filterPosts, indexTags, tagLabel } from './src/collection/tagModel';
+import { useCollectionTheme } from './src/collection/tokens';
+import { buzz } from './src/collection/ui/base';
+import { CardWall } from './src/collection/ui/CardWall';
+import { CardMenu, Toast } from './src/collection/ui/Overlays';
+import { PostDetail } from './src/collection/ui/PostDetail';
+import { SaveSheet } from './src/collection/ui/SaveSheet';
+import {
+  AddLinkSheet,
+  DownloadPickerSheet,
+  DownloadPill,
+  LoginSheet,
+  SettingsSheet,
+  UpdateBanner,
+} from './src/collection/ui/AppSheets';
 
-// How long the success state stays visible before handing the user back to Threads.
+// How long a confirmation stays visible before handing the user back to Threads.
 const RETURN_DELAY_MS = 700;
+const SEARCH_DEBOUNCE_MS = 250;
 
 export default function App() {
   return (
     <SafeAreaProvider>
-      <Home />
+      <Root />
     </SafeAreaProvider>
   );
 }
 
-function Home() {
-  const t = useTheme();
-  const insets = useSafeAreaInsets();
-  const { hasShareIntent, shareIntent, resetShareIntent } = useShareIntent();
-  const history = useHistory();
-  const { state, queued, start, retry, skip, choose, cancelChoice, webViewProps, webViewKey, busy } =
-    useDownloader({ onSaved: history.add });
-  const [link, setLink] = useState('');
-  const [fieldError, setFieldError] = useState(null);
-  const [fieldNote, setFieldNote] = useState(null);
-  const [loginOpen, setLoginOpen] = useState(false);
-  const [update, setUpdate] = useState(null);
-  const resumeAfterLogin = useRef(false);
+function Root() {
+  const [notice, setNotice] = useState(null);
+  const onNotice = useCallback((n) => setNotice({ ...n, at: Date.now() }), []);
+  useBrandFont();
+  return (
+    <CollectionProvider onNotice={onNotice}>
+      <Home notice={notice} />
+    </CollectionProvider>
+  );
+}
 
-  // Typed or pasted links are checked right here so the error sits under the field;
-  // shared links go straight to the downloader, which reports problems in the card.
-  // While a download is running, new links join the queue instead of replacing it.
-  const download = (text, options) => {
-    const post = parseThreadsUrl(text);
-    if (!post && !options?.fromShare) {
-      setFieldError(text.trim() ? '這不是 Threads 貼文連結' : '剪貼簿裡沒有 Threads 連結');
-      setFieldNote(null);
-      return;
+// Toast that survives leaving the app (shown over Threads); in-app toast otherwise.
+function systemToast(message) {
+  if (Platform.OS === 'android') ToastAndroid.show(message, ToastAndroid.SHORT);
+}
+
+function leaveToThreads() {
+  if (Platform.OS === 'android') setTimeout(() => BackHandler.exitApp(), RETURN_DELAY_MS);
+}
+
+function Home({ notice }) {
+  const t = useCollectionTheme();
+  const c = useCollection();
+  const index = useMemo(() => indexTags(c.tags), [c.tags]);
+  const { hasShareIntent, shareIntent, resetShareIntent } = useShareIntent();
+  const { markDownloaded } = c;
+  const onSaved = useCallback((entry) => markDownloaded(entry.code), [markDownloaded]);
+  const dl = useDownloader({ onSaved });
+
+  const [filter, setFilter] = useState([]);
+  const [query, setQuery] = useState('');
+  const [appliedQuery, setAppliedQuery] = useState('');
+  const [detailId, setDetailId] = useState(null);
+  const [menuPost, setMenuPost] = useState(null);
+  const [sheet, setSheet] = useState(null); // { mode: 'new' | 'edit', postId, fromShare }
+  const [sheetTags, setSheetTags] = useState([]);
+  const [addOpen, setAddOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [loginOpen, setLoginOpen] = useState(false);
+  const [toast, setToast] = useState(null);
+  const [update, setUpdate] = useState(null);
+  const [updateStatus, setUpdateStatus] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const pendingDownloads = useRef(new Map()); // postId → { fromShare }
+  const downloadAfterLogin = useRef(false);
+  const hideToast = useCallback(() => setToast(null), []);
+
+  const visible = useMemo(() => filterPosts(c.posts, filter, appliedQuery, index), [c.posts, filter, appliedQuery, index]);
+  const detail = detailId && c.posts.find((p) => p.id === c.resolveId(detailId));
+  const sheetPost = sheet && c.posts.find((p) => p.id === c.resolveId(sheet.postId));
+  const { buildNumber, releasesRepo } = Constants.expoConfig?.extra ?? {};
+  const version = `${Constants.expoConfig?.version ?? ''} (build ${buildNumber ?? '-'})`;
+
+  useEffect(() => {
+    const timer = setTimeout(() => setAppliedQuery(query), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [query]);
+
+  useEffect(() => {
+    if (releasesRepo && buildNumber) checkForUpdate(releasesRepo, buildNumber).then(setUpdate);
+  }, [releasesRepo, buildNumber]);
+
+  // Saves a link as a card and opens the save sheet (or the edit sheet if it's
+  // already saved). Returns 'added' | 'exists' | 'invalid'.
+  const collect = async (text, { fromShare = false } = {}) => {
+    const res = await c.addFromUrl(text);
+    if (res.status === 'invalid') {
+      setToast({ message: '這不是 Threads 貼文連結' });
+      return 'invalid';
     }
-    setFieldError(null);
-    setLink('');
-    const result = start(text, options);
-    const note = {
-      queued: '已加入排隊，前面的下載完成後就會開始',
-      duplicate: '這篇已經在下載或排隊中',
-    }[result];
-    setFieldNote(note || null);
-    if (note && options?.fromShare && Platform.OS === 'android') {
-      ToastAndroid.show(note, ToastAndroid.SHORT);
+    const existing = res.status === 'exists' && c.posts.find((p) => p.id === res.id);
+    setSheetTags(existing ? existing.tagIds : []);
+    setSheet({ mode: existing ? 'edit' : 'new', postId: res.id, fromShare });
+    if (existing) setToast({ message: '這篇已經收藏過，可以直接改標籤' });
+    return res.status;
+  };
+
+  // "Share → Threads 下載" from the Threads app. Waits until the collection has loaded.
+  useEffect(() => {
+    if (!hasShareIntent || !c.ready) return;
+    const text = shareIntent.webUrl || shareIntent.text || '';
+    resetShareIntent();
+    collect(text, { fromShare: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasShareIntent, c.ready]);
+
+  // Downloads start once the card's details are in (share links only resolve then).
+  const requestDownload = (id, fromShare = false) => {
+    const post = c.posts.find((p) => p.id === c.resolveId(id));
+    if (post?.status === 'ready' && post.code) dl.start(post.url, { fromShare });
+    else pendingDownloads.current.set(c.resolveId(id), { fromShare });
+  };
+
+  useEffect(() => {
+    for (const [id, opts] of [...pendingDownloads.current]) {
+      const post = c.posts.find((p) => p.id === c.resolveId(id));
+      if (post?.status === 'ready' && post.code) {
+        pendingDownloads.current.delete(id);
+        dl.start(post.url, opts);
+      } else if (!post || post.status === 'failed') {
+        pendingDownloads.current.delete(id);
+        setToast({ message: '貼文讀取失敗，無法下載' });
+      }
+    }
+  }, [c.posts, c, dl]);
+
+  // After a share-started download finishes (and nothing else is queued), go back to Threads.
+  useEffect(() => {
+    const s = dl.state;
+    if (s.phase !== 'done') return;
+    const message = `已存到相簿：${summary(s)}`;
+    if (s.fromShare) {
+      systemToast(message);
+      if (dl.queued === 0) leaveToThreads();
+    } else {
+      setToast({ message });
+    }
+    // Only react to a new result, not to the queue shrinking as the next item starts.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dl.state]);
+
+  useEffect(() => {
+    if (!notice) return;
+    if (notice.kind === 'duplicate') setToast({ message: '這篇之前收藏過了，標籤已合併到原本的卡片' });
+    else if (notice.kind === 'login') setLoginOpen(true);
+    else if (notice.kind === 'failed') setToast({ message: '有一篇貼文讀取失敗，可以在卡片上重試' });
+  }, [notice]);
+
+  // Applies the picked tags. Closing the sheet keeps them too, so nothing is lost.
+  const finishSheet = async ({ closed = false } = {}) => {
+    if (!sheet) return;
+    const { postId, mode, fromShare } = sheet;
+    const id = c.resolveId(postId);
+    setSheet(null);
+    await c.setPostTags(id, sheetTags);
+    const willDownload = !closed && mode === 'new' && c.downloadToo;
+    if (willDownload) requestDownload(id, fromShare);
+    const names = sheetTags.map((tid) => index.byId[tid]).filter(Boolean).map((tg) => tagLabel(tg, index.byId));
+    const message =
+      mode === 'edit'
+        ? '標籤已更新'
+        : (names.length ? `已收藏到 ${names.join('、')}` : '已收藏到「未分類」') + (willDownload ? '，下載中' : '');
+    if (!closed) buzz('success');
+    if (fromShare) {
+      systemToast(message);
+      if (!willDownload) leaveToThreads();
+    } else {
+      setToast({ message });
     }
   };
 
-  // "Share → Threads 下載" from the Threads app lands here and starts right away.
-  useEffect(() => {
-    if (!hasShareIntent) return;
-    download(shareIntent.webUrl || shareIntent.text || '', { fromShare: true });
-    resetShareIntent();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasShareIntent]);
-
-  // After a share-started download succeeds, confirm with a toast; once nothing is
-  // left in the queue, step out of the way so the user lands back in Threads.
-  // Errors keep the app open.
-  useEffect(() => {
-    if (state.phase !== 'done' || !state.fromShare || Platform.OS !== 'android') return;
-    ToastAndroid.show(`已存到相簿：${summary(state)}`, ToastAndroid.SHORT);
-    if (queued > 0) return;
-    const timer = setTimeout(() => BackHandler.exitApp(), RETURN_DELAY_MS);
-    return () => clearTimeout(timer);
-    // Only react to a new result, not to the queue shrinking as the next item starts.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state]);
-
-  // The only way past a login wall is logging in, so offer the sheet right away
-  // and pick the download back up once it closes logged in.
-  useEffect(() => {
-    if (state.action?.kind === 'login') {
-      resumeAfterLogin.current = true;
-      setLoginOpen(true);
+  const onAction = (kind, post) => {
+    setMenuPost(null);
+    switch (kind) {
+      case 'feature':
+        c.toggleFeatured(post.id);
+        setToast({ message: post.featured ? '已取消精選' : '已設為精選，會放大成整排' });
+        break;
+      case 'tags':
+        setSheetTags(post.tagIds);
+        setSheet({ mode: 'edit', postId: post.id, fromShare: false });
+        break;
+      case 'download':
+        requestDownload(post.id);
+        break;
+      case 'open':
+        Linking.openURL(post.url).catch(() => setToast({ message: '無法開啟 Threads' }));
+        break;
+      case 'more':
+        setMenuPost(post);
+        break;
+      case 'delete':
+        c.remove(post.id);
+        setDetailId(null);
+        setToast({ message: '已刪除收藏', undo: true });
+        break;
+      default:
     }
-  }, [state]);
+  };
 
-  useEffect(() => {
-    const { buildNumber, releasesRepo } = Constants.expoConfig?.extra ?? {};
-    if (releasesRepo && buildNumber) checkForUpdate(releasesRepo, buildNumber).then(setUpdate);
-  }, []);
-
-  const onAction = (kind) => {
-    if (kind === 'login') setLoginOpen(true);
-    else if (kind === 'skip') skip();
-    else retry();
+  const add = async () => {
+    let clip = '';
+    try {
+      clip = await Clipboard.getStringAsync();
+    } catch {
+      // No clipboard access; fall back to typing the link.
+    }
+    if (parseThreadsUrl(clip)) collect(clip);
+    else setAddOpen(true);
   };
 
   const onLoggedIn = () => {
     setLoginOpen(false);
-    if (resumeAfterLogin.current) {
-      resumeAfterLogin.current = false;
-      retry();
+    c.retryLoginFailures();
+    if (downloadAfterLogin.current) {
+      downloadAfterLogin.current = false;
+      dl.retry();
     }
   };
 
-  const pasteAndDownload = async () => download(await Clipboard.getStringAsync());
+  const checkNow = async () => {
+    if (!releasesRepo) return;
+    setUpdateStatus('檢查中…');
+    const found = await checkForUpdate(releasesRepo, buildNumber || 0);
+    setUpdate(found);
+    setUpdateStatus(found ? `${found.name} 可以下載` : '已是最新版本');
+  };
 
-  const firstRun = state.phase === 'idle' && history.items.length === 0;
+  const pullRefresh = async () => {
+    setRefreshing(true);
+    c.posts.filter((p) => p.status === 'failed').forEach((p) => c.retry(p.id));
+    setTimeout(() => setRefreshing(false), 600);
+  };
 
+  // Android back closes the topmost layer first; the wall stays mounted underneath
+  // so its scroll position and filters survive.
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (sheet) return finishSheet({ closed: true }), true;
+      if (addOpen) return setAddOpen(false), true;
+      if (settingsOpen) return setSettingsOpen(false), true;
+      if (menuPost) return setMenuPost(null), true;
+      if (detailId) return setDetailId(null), true;
+      return false;
+    });
+    return () => sub.remove();
+  });
+
+  const tagCount = c.tags.length;
   return (
-    <View style={[styles.screen, { backgroundColor: t.background }]}>
-      <ScrollView
-        contentContainerStyle={[styles.content, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 24 }]}
-        keyboardShouldPersistTaps="handled"
-      >
-        <View style={styles.header}>
-          <View style={styles.headerText}>
-            <Text style={[type.largeTitle, { color: t.label }]} accessibilityRole="header">
-              Threads 下載
-            </Text>
-            <Text style={[type.subhead, { color: t.secondary }]}>把貼文裡的影片和圖片存到相簿</Text>
-          </View>
-          <IconButton
-            icon="person-circle-outline"
-            size={28}
-            label="登入或切換 Threads 帳號"
-            onPress={() => setLoginOpen(true)}
+    <View style={[styles.root, { backgroundColor: t.background }]}>
+      <CardWall
+        posts={visible}
+        index={index}
+        filter={filter}
+        onFilter={setFilter}
+        query={query}
+        onQuery={setQuery}
+        onOpen={(p) => setDetailId(p.id)}
+        onMenu={(p) => {
+          buzz('light');
+          setMenuPost(p);
+        }}
+        onRetry={(p) => c.retry(p.id)}
+        onAdd={add}
+        onSettings={() => setSettingsOpen(true)}
+        onRefresh={pullRefresh}
+        refreshing={refreshing}
+        banner={
+          <UpdateBanner
+            release={update}
+            onDownload={() => Linking.openURL(update.apkUrl)}
+            onDismiss={() => setUpdate(null)}
+          />
+        }
+        overlay={
+          <DownloadPill
+            state={dl.state}
+            queued={dl.queued}
+            onAction={(kind) => {
+              if (kind === 'login') {
+                downloadAfterLogin.current = true;
+                setLoginOpen(true);
+              } else dl.retry();
+            }}
+            onSkip={dl.skip}
+          />
+        }
+      />
+      {detail && (
+        <View style={StyleSheet.absoluteFill}>
+          <PostDetail
+            post={detail}
+            index={index}
+            onBack={() => setDetailId(null)}
+            onAction={onAction}
+            onStale={(p) => c.refresh(p.id)}
           />
         </View>
-
-        <UpdateCard release={update} onDismiss={() => setUpdate(null)} />
-
-        <Card style={styles.inputCard}>
-          <Text nativeID="linkLabel" style={[type.footnote, styles.label, { color: t.secondary }]}>
-            貼文連結
-          </Text>
-          <View
-            style={[
-              styles.field,
-              { backgroundColor: t.fill },
-              fieldError && { borderColor: t.danger, borderWidth: 1.5 },
-            ]}
-          >
-            <Ionicons name="link-outline" size={20} color={t.secondary} style={styles.fieldIcon} />
-            <TextInput
-              value={link}
-              onChangeText={(v) => {
-                setLink(v);
-                setFieldError(null);
-                setFieldNote(null);
-              }}
-              placeholder="https://www.threads.com/…"
-              placeholderTextColor={t.secondary}
-              style={[type.body, styles.input, { color: t.label }]}
-              accessibilityLabel="貼文連結"
-              accessibilityLabelledBy="linkLabel"
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="url"
-              returnKeyType="go"
-              onSubmitEditing={() => download(link)}
-            />
-            {!!link && (
-              <IconButton
-                icon="close-circle"
-                size={20}
-                color={t.secondary}
-                label="清除連結"
-                onPress={() => {
-                  setLink('');
-                  setFieldError(null);
-                }}
-              />
-            )}
-          </View>
-          {fieldError ? (
-            <View style={styles.helper} accessibilityLiveRegion="polite">
-              <Ionicons name="alert-circle" size={16} color={t.danger} />
-              <Text style={[type.footnote, styles.helperFlex, { color: t.danger }]}>{fieldError}</Text>
-            </View>
-          ) : fieldNote ? (
-            <View style={styles.helper} accessibilityLiveRegion="polite">
-              <Ionicons name="time-outline" size={16} color={t.secondary} />
-              <Text style={[type.footnote, styles.helperFlex, { color: t.secondary }]}>{fieldNote}</Text>
-            </View>
-          ) : (
-            <Text style={[type.footnote, styles.helperText, { color: t.secondary }]}>
-              支援貼文連結與 Threads App 的分享連結
-            </Text>
-          )}
-          <Button
-            title={busy ? (link ? '加入排隊' : '貼上並加入排隊') : link ? '下載' : '貼上連結並下載'}
-            icon={busy ? 'add-circle-outline' : link ? 'download-outline' : 'clipboard-outline'}
-            onPress={link ? () => download(link) : pasteAndDownload}
-          />
-        </Card>
-
-        {firstRun ? (
-          <Onboarding />
-        ) : (
-          <StatusCard state={state} queued={queued} onAction={onAction} />
-        )}
-
-        <HistoryList
-          items={history.items}
-          onRedownload={(url) => download(url)}
-          onClear={history.clear}
-        />
-      </ScrollView>
-
-      {/* Loads the post with the user's Threads session; never shown on screen. */}
-      {webViewProps && (
-        <WebView key={webViewKey} {...webViewProps} sharedCookiesEnabled style={styles.hiddenWeb} />
       )}
 
-      <PickerSheet
-        key={state.phase === 'choosing' ? state.post.code : 'none'}
-        post={state.phase === 'choosing' ? state.post : null}
-        onConfirm={choose}
-        onCancel={cancelChoice}
-      />
+      {/* Hidden WebViews that read posts with the user's Threads session. */}
+      {c.fetcherView}
+      {dl.webViewProps && (
+        <WebView key={dl.webViewKey} {...dl.webViewProps} sharedCookiesEnabled style={styles.hiddenWeb} />
+      )}
 
-      <LoginSheet
-        visible={loginOpen}
-        onClose={() => {
-          resumeAfterLogin.current = false;
-          setLoginOpen(false);
-        }}
-        onLoggedIn={onLoggedIn}
+      <CardMenu post={menuPost} onClose={() => setMenuPost(null)} onAction={onAction} />
+      <SaveSheet
+        visible={!!sheet}
+        mode={sheet?.mode}
+        post={sheetPost}
+        loading={sheetPost?.status === 'loading'}
+        index={index}
+        selected={sheetTags}
+        onToggle={(id) => setSheetTags((list) => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id]))}
+        onCreateTag={c.createTag}
+        recentIds={c.recent}
+        downloadToo={c.downloadToo}
+        onDownloadToo={c.setDownloadToo}
+        onDone={() => finishSheet()}
+        onClose={() => finishSheet({ closed: true })}
       />
-      <StatusBar style="auto" />
+      <AddLinkSheet
+        visible={addOpen}
+        onClose={() => setAddOpen(false)}
+        onSubmit={async (text) => {
+          if (!parseThreadsUrl(text)) return 'invalid';
+          setAddOpen(false);
+          return collect(text);
+        }}
+      />
+      <DownloadPickerSheet
+        key={dl.state.phase === 'choosing' ? dl.state.post.code : 'none'}
+        post={dl.state.phase === 'choosing' ? dl.state.post : null}
+        onConfirm={dl.choose}
+        onCancel={dl.cancelChoice}
+      />
+      <SettingsSheet
+        visible={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        onLogin={() => {
+          setSettingsOpen(false);
+          setLoginOpen(true);
+        }}
+        onCheckUpdate={checkNow}
+        updateStatus={updateStatus}
+        version={version}
+        stats={`${c.posts.length} 篇 · ${tagCount} 個標籤`}
+      />
+      <LoginSheet visible={loginOpen} onClose={() => setLoginOpen(false)} onLoggedIn={onLoggedIn} />
+      <Toast toast={toast} onUndo={() => { c.undoRemove(); setToast(null); }} onHide={hideToast} />
+      <StatusBar style={t.scheme === 'dark' ? 'light' : 'dark'} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1 },
-  content: { paddingHorizontal: 20, gap: 16 },
-  header: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  headerText: { flex: 1, gap: 2 },
-  inputCard: { gap: 8 },
-  label: { fontWeight: '600' },
-  field: { flexDirection: 'row', alignItems: 'center', borderRadius: 12, paddingLeft: 12, minHeight: 50 },
-  fieldIcon: { marginRight: 8 },
-  input: { flex: 1, minWidth: 0, minHeight: 48, paddingVertical: 12 },
-  helper: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 18 },
-  helperText: { minHeight: 18 },
-  helperFlex: { flex: 1 },
+  root: { flex: 1 },
   hiddenWeb: { position: 'absolute', width: 1, height: 1, opacity: 0 },
 });

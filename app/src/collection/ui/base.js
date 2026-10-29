@@ -21,7 +21,11 @@ export function buzz(kind) {
 // `containerStyle` positions/sizes the touch target itself (absolute, flex…);
 // `style` is the visual box that scales. Layout must live on the container, or
 // the touch target collapses to 0×0 and Android drops touches outside it.
-export function PressScale({ children, style, containerStyle, onPress, onLongPress, disabled, ...a11y }) {
+// `delayPressIn`: for items inside scrolling lists — wait briefly before showing
+// the press so a finger that starts a scroll doesn't make the card shrink.
+const SCROLL_PRESS_DELAY_MS = 90;
+
+export function PressScale({ children, style, containerStyle, onPress, onLongPress, disabled, delayPressIn, ...a11y }) {
   const reduce = useReduceMotion();
   const scale = useState(() => new Animated.Value(1))[0];
   const to = (v) => () => {
@@ -32,6 +36,8 @@ export function PressScale({ children, style, containerStyle, onPress, onLongPre
       onPress={onPress}
       onLongPress={onLongPress}
       delayLongPress={350}
+      unstable_pressDelay={delayPressIn ? SCROLL_PRESS_DELAY_MS : undefined}
+      delayPressIn={delayPressIn ? SCROLL_PRESS_DELAY_MS : undefined}
       onPressIn={to(0.97)}
       onPressOut={to(1)}
       disabled={disabled}

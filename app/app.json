@@ -43,7 +43,35 @@
           }
         }
       ],
-      "./plugins/withReleaseSigning"
+      "./plugins/withReleaseSigning",
+      [
+        "expo-font",
+        {
+          "android": {
+            "fonts": [
+              {
+                "fontFamily": "WenKai",
+                "fontDefinitions": [
+                  {
+                    "path": "./assets/fonts/WenKaiTC-Regular.ttf",
+                    "weight": 400
+                  },
+                  {
+                    "path": "./assets/fonts/WenKaiTC-Bold.ttf",
+                    "weight": 700
+                  }
+                ]
+              }
+            ]
+          },
+          "ios": {
+            "fonts": [
+              "./assets/fonts/WenKaiTC-Regular.ttf",
+              "./assets/fonts/WenKaiTC-Bold.ttf"
+            ]
+          }
+        }
+      ]
     ],
     "scheme": "threadsdownloader"
   }

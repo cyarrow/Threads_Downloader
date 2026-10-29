@@ -2,6 +2,7 @@ import { memo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
+import { cardStill } from '../media';
 import { tagHue, tagLabel } from '../tagModel';
 import { font, icon, radius, space, tagColors, useCollectionTheme } from '../tokens';
 import { PressScale, TagChip } from './base';
@@ -52,7 +53,9 @@ function PostCardImpl({ post, index, onPress, onLongPress, onRetry, wide, maxMed
   const tags = post.tagIds.map((id) => index.byId[id]).filter(Boolean);
   const hue = tags[0] ? tagHue(tags[0], index.byId) : 'slate';
   const first = post.media[0];
-  const quote = !first && post.status !== 'loading' && post.status !== 'failed';
+  const still = cardStill(post);
+  const visual = !!(first || still);
+  const quote = !visual && post.status !== 'loading' && post.status !== 'failed';
 
   if (post.status === 'loading') {
     return (
@@ -66,8 +69,10 @@ function PostCardImpl({ post, index, onPress, onLongPress, onRetry, wide, maxMed
     return (
       <View style={[styles.card, styles.failed, { backgroundColor: t.card, borderColor: t.border }]}>
         <Ionicons name="alert-circle" size={icon.lg} color={t.danger} />
-        <Text style={[font.label, { color: t.foreground }]}>讀取失敗</Text>
-        <Text style={[font.meta, { color: t.mutedForeground }]}>@{post.author}</Text>
+        <Text style={[font.label, { color: t.foreground }]}>{post.error === 'login' ? '需要登入 Threads' : '讀取失敗'}</Text>
+        <Text style={[font.meta, { color: t.mutedForeground, textAlign: 'center' }]} numberOfLines={2}>
+          {post.author ? `@${post.author}` : post.url.replace(/^https:\/\/www\./, '')}
+        </Text>
         <Pressable onPress={onRetry} accessibilityRole="button" style={styles.retry}>
           <Text style={[font.label, { color: t.accent }]}>重試</Text>
         </Pressable>
@@ -75,12 +80,13 @@ function PostCardImpl({ post, index, onPress, onLongPress, onRetry, wide, maxMed
     );
   }
 
-  const ratio = first
+  const natural = first?.ratio || 1;
+  const ratio = visual
     ? post.featured
       ? wide
-        ? clamp(first.ratio, 0.3, 0.45)
-        : clamp(first.ratio, 0.5, 0.75)
-      : clamp(first.ratio, 0.75, 1.6)
+        ? clamp(natural, 0.3, 0.45)
+        : clamp(natural, 0.5, 0.75)
+      : clamp(natural, 0.75, 1.6)
     : null;
   const kind = first ? (first.type === 'video' ? '影片' : post.media.length > 1 ? `${post.media.length} 張圖片` : '圖片') : '文字';
   const a11y = [
@@ -97,24 +103,28 @@ function PostCardImpl({ post, index, onPress, onLongPress, onRetry, wide, maxMed
     <PressScale
       onPress={onPress}
       onLongPress={onLongPress}
+      delayPressIn
       accessibilityRole="button"
       accessibilityLabel={a11y}
       accessibilityHint="長按可設為精選、編輯標籤或刪除"
       style={[styles.card, { backgroundColor: t.card, borderColor: t.border }]}
     >
-      {first && (
+      {visual && (
         <View>
+          {/* recyclingKey: the list reuses card views while scrolling; without it a
+              recycled card briefly shows the previous post's image. */}
           <Image
-            source={first.image}
+            source={still}
+            recyclingKey={post.id}
             style={[styles.media, { aspectRatio: 1 / ratio, maxHeight: maxMediaHeight, backgroundColor: t.muted }]}
             contentFit="cover"
-            transition={150}
+            cachePolicy="memory-disk"
             accessible={false}
           />
           <View style={styles.badgesTop}>
             <View style={styles.badgeRow}>
               {post.featured && <Badge iconName="star" label="精選" />}
-              {first.type === 'video' && <Badge iconName="play" />}
+              {first?.type === 'video' && <Badge iconName="play" />}
             </View>
             {post.media.length > 1 && <Badge label={`1/${post.media.length}`} />}
           </View>
@@ -138,7 +148,7 @@ function PostCardImpl({ post, index, onPress, onLongPress, onRetry, wide, maxMed
           </View>
         ) : (
           !!post.caption && (
-            <Text style={[post.featured ? font.headline : font.card, { color: t.foreground }]} numberOfLines={post.featured ? 3 : 2}>
+            <Text style={[post.featured ? font.cardFeatured : font.card, { color: t.foreground }]} numberOfLines={post.featured ? 3 : 2}>
               {post.caption}
             </Text>
           )
@@ -148,7 +158,7 @@ function PostCardImpl({ post, index, onPress, onLongPress, onRetry, wide, maxMed
           <Text style={[font.meta, styles.authorText, { color: t.mutedForeground }]} numberOfLines={1}>
             @{post.author}
           </Text>
-          {!first && post.downloaded && <Ionicons name="download-outline" size={icon.sm} color={t.mutedForeground} />}
+          {!visual && post.downloaded && <Ionicons name="download-outline" size={icon.sm} color={t.mutedForeground} />}
         </View>
         {tags.length > 0 && (
           <View style={styles.tags}>

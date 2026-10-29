@@ -14,7 +14,7 @@ const GAP = space.sm; // between cards
 
 // Home screen: top bar, search, tag filter, masonry wall (featured cards span
 // every column), and the + button. Layout rules: pages/card-wall.md.
-export function CardWall({ posts, index, filter, onFilter, query, onQuery, onOpen, onMenu, onRetry, onAdd, onSettings, banner }) {
+export function CardWall({ posts, index, filter, onFilter, query, onQuery, onOpen, onMenu, onRetry, onAdd, onSettings, banner, onRefresh, refreshing, overlay }) {
   const t = useCollectionTheme();
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
@@ -66,6 +66,10 @@ export function CardWall({ posts, index, filter, onFilter, query, onQuery, onOpe
         numColumns={columns}
         optimizeItemArrangement
         keyExtractor={(p) => p.id}
+        // Render a screen's worth ahead so fast scrolling doesn't reveal blank cards.
+        drawDistance={height}
+        onRefresh={onRefresh}
+        refreshing={!!refreshing}
         overrideItemLayout={(layout, item) => {
           if (item.featured) layout.span = columns;
         }}
@@ -99,6 +103,7 @@ export function CardWall({ posts, index, filter, onFilter, query, onQuery, onOpe
       >
         <Ionicons name="add" size={28} color={t.onPrimary} />
       </PressScale>
+      {overlay}
     </View>
   );
 }

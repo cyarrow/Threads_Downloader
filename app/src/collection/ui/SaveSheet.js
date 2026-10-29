@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
+import { tagNameError } from '../collectionModel';
+import { cardStill } from '../media';
 import { tagHue, tagLabel } from '../tagModel';
 import { TOUCH, font, icon, radius, space, useCollectionTheme } from '../tokens';
 import { PrimaryButton, Sheet, TagChip } from './base';
@@ -13,11 +15,9 @@ function NewTagForm({ index, parentId: initialParent, onCreate, onCancel }) {
   const [error, setError] = useState(null);
 
   const submit = () => {
-    const trimmed = name.trim();
-    if (!trimmed) return setError('請輸入標籤名稱');
-    const siblings = parentId ? index.children[parentId] || [] : index.parents;
-    if (siblings.some((s) => s.name === trimmed)) return setError('這個名稱已經有了');
-    onCreate(trimmed, parentId);
+    const problem = tagNameError(name, parentId, Object.values(index.byId));
+    if (problem) return setError(problem);
+    onCreate(name.trim(), parentId);
   };
 
   return (
@@ -80,8 +80,8 @@ export function TagPicker({ index, selected, onToggle, onCreate, recentIds = [] 
   // children show as a count so it's clear the parent isn't tagged too.
   const pickedChildren = (p) => (index.children[p.id] || []).filter((c) => selected.includes(c.id)).length;
 
-  const create = (name, parentId) => {
-    const tag = onCreate(name, parentId);
+  const create = async (name, parentId) => {
+    const tag = await onCreate(name, parentId);
     setCreating(null);
     if (parentId && !open.includes(parentId)) setOpen([...open, parentId]);
     if (tag) onToggle(tag.id);
@@ -165,13 +165,13 @@ export function TagPicker({ index, selected, onToggle, onCreate, recentIds = [] 
 
 function Preview({ post, loading }) {
   const t = useCollectionTheme();
-  const first = post?.media?.[0];
+  const first = post && cardStill(post);
   return (
     <View style={[styles.preview, { backgroundColor: t.muted }]} accessibilityLiveRegion="polite">
       {loading ? (
         <View style={[styles.thumb, { backgroundColor: t.field }]} />
       ) : first ? (
-        <Image source={first.image} style={styles.thumb} contentFit="cover" accessible={false} />
+        <Image source={first} style={styles.thumb} contentFit="cover" accessible={false} />
       ) : (
         <View style={[styles.thumb, styles.thumbQuote, { backgroundColor: t.field }]}>
           <Ionicons name="chatbubble-ellipses-outline" size={icon.lg} color={t.mutedForeground} />
@@ -179,7 +179,7 @@ function Preview({ post, loading }) {
       )}
       <View style={styles.previewText}>
         <Text style={[font.label, { color: t.foreground }]} numberOfLines={1}>
-          {loading ? '讀取中…' : `@${post.author}`}
+          {loading ? '讀取中…' : post.author ? `@${post.author}` : 'Threads 貼文'}
         </Text>
         {loading ? (
           <View style={[styles.skeletonLine, { backgroundColor: t.field }]} />

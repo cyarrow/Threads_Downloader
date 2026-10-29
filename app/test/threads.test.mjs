@@ -49,6 +49,8 @@ test('picks the highest-resolution video, not the thumbnail', () => {
       width: 1080,
       height: 1920,
       thumb: 'https://cdn.example/thumb.jpg',
+      poster: 'https://cdn.example/thumb.jpg',
+      ratio: 1.778,
     },
   ]);
 });
@@ -128,8 +130,38 @@ test('extractPost returns author, caption, and a grid-sized thumbnail per item',
 
 test('extractPost leaves author and caption null when only <video> tags were found', () => {
   assert.deepEqual(extractPost([], 'X', ['https://cdn.example/x.mp4']), {
+    found: false,
     author: null,
     caption: null,
     media: [{ type: 'video', url: 'https://cdn.example/x.mp4' }],
   });
+});
+
+test('extractPost gives each item a full-resolution poster and its aspect ratio', () => {
+  const post = {
+    code: 'R1',
+    media_type: 8,
+    image_versions2: { candidates: [] },
+    carousel_media: [
+      { media_type: 1, image_versions2: { candidates: [
+        { url: 'https://cdn.example/s.jpg', width: 320, height: 400 },
+        { url: 'https://cdn.example/full.jpg', width: 1440, height: 1800 },
+      ] } },
+      // Videos often lack dimensions; fall back to the cover image's ratio.
+      { media_type: 2, video_versions: [{ url: 'https://cdn.example/v.mp4' }],
+        image_versions2: { candidates: [{ url: 'https://cdn.example/cover.jpg', width: 1080, height: 1920 }] } },
+    ],
+  };
+  const [img, vid] = extractPost([page(post)], 'R1').media;
+  assert.equal(img.poster, 'https://cdn.example/full.jpg');
+  assert.equal(img.ratio, 1.25);
+  assert.equal(vid.type, 'video');
+  assert.equal(vid.poster, 'https://cdn.example/cover.jpg');
+  assert.equal(vid.ratio, 1.778);
+});
+
+test('extractPost finds text-only posts so they can be collected', () => {
+  const post = { code: 'T1', media_type: 19, user: { username: 'writer' }, caption: { text: '純文字' },
+    video_versions: null, image_versions2: { candidates: [] } };
+  assert.deepEqual(extractPost([page(post)], 'T1'), { found: true, author: 'writer', caption: '純文字', media: [] });
 });

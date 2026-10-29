@@ -236,6 +236,16 @@
 - 面板手勢：用 `react-native-gesture-handler`（資料庫建議原生手勢）。
 - 資料：本機 SQLite（`expo-sqlite`），標籤用 `parentId` 做兩層；貼文只存最底層標籤，篩選大標籤時往下展開。
 - 現有 `src/ui/theme.js` 的 iOS 藍色票，正式實作時換成本檔的語意色票，全 App 一致。
+- 已在雛形驗證可行：`FlashList` 的 `masonry` + `numColumns` + `optimizeItemArrangement`，精選卡用 `overrideItemLayout` 設 `layout.span = numColumns` 佔整排；卡片間距用每格 padding 4 + 清單左右 padding 12 做出 8 / 16。
+- **按壓元件的版面樣式要放在可點區域本身**（`PressScale` 的 `containerStyle`：position、flex、寬度），縮放效果放內層。雛形曾把 FAB 的絕對定位放在內層，結果可點區域是 0×0，Android 會點不到。
+
+---
+
+## 15. 介面雛形
+
+- 位置：`app/prototype/PrototypeApp.js`（假資料在 `app/src/collection/mock/`），元件在 `app/src/collection/ui/`，正式實作直接沿用這些元件，把假資料換成資料庫。
+- 建置：`cd app && npm run prototype:web`（輸出到 `app/dist-prototype/`，不進版控）。
+- 2026-10-29 驗證：360 寬淺色、412 寬深色、800×400 橫向；12 個操作步驟（篩選、長按選單、內容頁、收藏面板讀取→選標籤→新增標籤錯誤→新增成功→完成、搜尋無結果）全部通過，無錯誤。
 
 ---
 

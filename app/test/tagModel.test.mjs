@@ -39,6 +39,8 @@ test('filterPosts: search matches author or caption and combines with tags', () 
   assert.deepEqual(ids(filterPosts(posts, [], 'B.TWO', index)), [2]);
   assert.deepEqual(ids(filterPosts(posts, [], '舞台', index)), [1]);
   assert.deepEqual(ids(filterPosts(posts, ['food'], '舞台', index)), []);
+  assert.deepEqual(ids(filterPosts(posts, [], '星光', index)), [1]); // tag name
+
 });
 
 test('foldChips folds overflow into +N but keeps selected chips visible', () => {

@@ -14,6 +14,11 @@ import { CollectionProvider, useCollection } from './src/collection/store';
 import { useBrandFont } from './src/collection/fonts';
 import { filterPosts, indexTags, tagLabel } from './src/collection/tagModel';
 import { useCollectionTheme } from './src/collection/tokens';
+import { pickBackup, shareBackup } from './src/collection/backupIO';
+import { pickRediscover, randomPicks } from './src/collection/rediscover';
+import { suggestTags } from './src/collection/suggest';
+import { RediscoverCard, TagManager, Triage } from './src/collection/ui/Phase2';
+import { SecondaryButton } from './src/collection/ui/base';
 import { buzz } from './src/collection/ui/base';
 import { CardWall } from './src/collection/ui/CardWall';
 import { CardMenu, Toast } from './src/collection/ui/Overlays';
@@ -83,6 +88,11 @@ function Home({ notice }) {
   const [update, setUpdate] = useState(null);
   const [updateStatus, setUpdateStatus] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [tagsOpen, setTagsOpen] = useState(false);
+  const [triageOpen, setTriageOpen] = useState(false);
+  const [rediscoverRound, setRediscoverRound] = useState(0);
+  const [rediscoverHidden, setRediscoverHidden] = useState(false);
+  const afterSheet = useRef(null); // e.g. triage moving to the next post
   const pendingDownloads = useRef(new Map()); // postId → { fromShare }
   const downloadAfterLogin = useRef(false);
   const hideToast = useCallback(() => setToast(null), []);
@@ -90,6 +100,18 @@ function Home({ notice }) {
   const visible = useMemo(() => filterPosts(c.posts, filter, appliedQuery, index), [c.posts, filter, appliedQuery, index]);
   const detail = detailId && c.posts.find((p) => p.id === c.resolveId(detailId));
   const sheetPost = sheet && c.posts.find((p) => p.id === c.resolveId(sheet.postId));
+  const suggestions = useMemo(
+    () => (sheetPost?.status === 'ready' ? suggestTags(sheetPost, c.posts, index) : []),
+    [sheetPost, c.posts, index],
+  );
+  const untagged = c.posts.filter((p) => !p.tagIds.length && p.status === 'ready').length;
+  const rediscover = useMemo(() => {
+    if (rediscoverHidden || filter.length || appliedQuery.trim()) return null;
+    const now = Date.now();
+    if (rediscoverRound === 0) return pickRediscover(c.posts, now);
+    const posts = randomPicks(c.posts, now, 3, rediscoverRound);
+    return posts.length ? { title: '隨機翻翻', subtitle: '換一批舊收藏看看', posts } : null;
+  }, [c.posts, filter, appliedQuery, rediscoverRound, rediscoverHidden]);
   const { buildNumber, releasesRepo } = Constants.expoConfig?.extra ?? {};
   const version = `${Constants.expoConfig?.version ?? ''} (build ${buildNumber ?? '-'})`;
 
@@ -183,6 +205,10 @@ function Home({ notice }) {
         ? '標籤已更新'
         : (names.length ? `已收藏到 ${names.join('、')}` : '已收藏到「未分類」') + (willDownload ? '，下載中' : '');
     if (!closed) buzz('success');
+    if (afterSheet.current) {
+      afterSheet.current();
+      afterSheet.current = null;
+    }
     if (fromShare) {
       systemToast(message);
       if (!willDownload) leaveToThreads();
@@ -268,6 +294,28 @@ function Home({ notice }) {
     return () => sub.remove();
   });
 
+  const exportNow = async () => {
+    setSettingsOpen(false);
+    try {
+      await shareBackup(c.exportBackup());
+      setToast({ message: `已匯出 ${c.posts.length} 篇收藏` });
+    } catch {
+      setToast({ message: '匯出失敗，請再試一次' });
+    }
+  };
+
+  const importNow = async () => {
+    setSettingsOpen(false);
+    try {
+      const text = await pickBackup();
+      if (!text) return;
+      const { added, skipped } = await c.importBackup(text);
+      setToast({ message: `匯入 ${added} 篇${skipped ? `，${skipped} 篇已經有了` : ''}` });
+    } catch (e) {
+      setToast({ message: e.message || '匯入失敗' });
+    }
+  };
+
   const tagCount = c.tags.length;
   return (
     <View style={[styles.root, { backgroundColor: t.background }]}>
@@ -289,11 +337,28 @@ function Home({ notice }) {
         onRefresh={pullRefresh}
         refreshing={refreshing}
         banner={
-          <UpdateBanner
-            release={update}
-            onDownload={() => Linking.openURL(update.apkUrl)}
-            onDismiss={() => setUpdate(null)}
-          />
+          <View style={styles.banners}>
+            <UpdateBanner
+              release={update}
+              onDownload={() => Linking.openURL(update.apkUrl)}
+              onDismiss={() => setUpdate(null)}
+            />
+            <RediscoverCard
+              pick={rediscover}
+              onOpen={(p) => setDetailId(p.id)}
+              onShuffle={() => setRediscoverRound((r) => r + 1)}
+              onDismiss={() => setRediscoverHidden(true)}
+            />
+            {untagged > 0 && !filter.length && (
+              <View style={styles.triageEntry}>
+                <SecondaryButton
+                  title={`整理未分類（${untagged} 篇）`}
+                  iconName="albums-outline"
+                  onPress={() => setTriageOpen(true)}
+                />
+              </View>
+            )}
+          </View>
         }
         overlay={
           <DownloadPill
@@ -338,6 +403,7 @@ function Home({ notice }) {
         onToggle={(id) => setSheetTags((list) => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id]))}
         onCreateTag={c.createTag}
         recentIds={c.recent}
+        suggestions={suggestions}
         downloadToo={c.downloadToo}
         onDownloadToo={c.setDownloadToo}
         onDone={() => finishSheet()}
@@ -365,11 +431,41 @@ function Home({ notice }) {
           setSettingsOpen(false);
           setLoginOpen(true);
         }}
+        onTags={() => {
+          setSettingsOpen(false);
+          setTagsOpen(true);
+        }}
+        onExport={exportNow}
+        onImport={importNow}
         onCheckUpdate={checkNow}
         updateStatus={updateStatus}
         version={version}
         stats={`${c.posts.length} 篇 · ${tagCount} 個標籤`}
       />
+      {tagsOpen && (
+        <TagManager
+          posts={c.posts}
+          index={index}
+          onClose={() => setTagsOpen(false)}
+          onRename={c.renameTag}
+          onRecolor={c.recolorTag}
+          onMerge={c.mergeTag}
+          onDelete={c.deleteTag}
+        />
+      )}
+      {triageOpen && (
+        <Triage
+          posts={c.posts}
+          index={index}
+          onClose={() => setTriageOpen(false)}
+          onTag={(id, tagIds) => c.setPostTags(id, tagIds)}
+          onMoreTags={(post, advance) => {
+            afterSheet.current = advance;
+            setSheetTags(post.tagIds);
+            setSheet({ mode: 'edit', postId: post.id, fromShare: false });
+          }}
+        />
+      )}
       <LoginSheet visible={loginOpen} onClose={() => setLoginOpen(false)} onLoggedIn={onLoggedIn} />
       <Toast toast={toast} onUndo={() => { c.undoRemove(); setToast(null); }} onHide={hideToast} />
       <StatusBar style={t.scheme === 'dark' ? 'light' : 'dark'} />
@@ -380,4 +476,6 @@ function Home({ notice }) {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   hiddenWeb: { position: 'absolute', width: 1, height: 1, opacity: 0 },
+  banners: { gap: 12 },
+  triageEntry: { flexDirection: 'row' },
 });

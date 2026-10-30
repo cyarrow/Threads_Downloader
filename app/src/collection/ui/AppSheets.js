@@ -260,10 +260,13 @@ function SettingsRow({ iconName, label, value, onPress }) {
   );
 }
 
-export function SettingsSheet({ visible, onClose, onLogin, onCheckUpdate, updateStatus, version, stats }) {
+export function SettingsSheet({ visible, onClose, onLogin, onTags, onExport, onImport, onCheckUpdate, updateStatus, version, stats }) {
   return (
     <Sheet visible={visible} onClose={onClose} title="設定">
       <View style={styles.settings}>
+        <SettingsRow iconName="pricetags-outline" label="標籤管理" onPress={onTags} />
+        <SettingsRow iconName="share-outline" label="匯出備份" value="換手機時用" onPress={onExport} />
+        <SettingsRow iconName="download-outline" label="匯入備份" onPress={onImport} />
         <SettingsRow iconName="person-circle-outline" label="登入或切換 Threads 帳號" onPress={onLogin} />
         <SettingsRow iconName="cloud-download-outline" label="檢查更新" value={updateStatus} onPress={onCheckUpdate} />
         <SettingsRow iconName="albums-outline" label="收藏" value={stats} />

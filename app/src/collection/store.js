@@ -11,6 +11,7 @@ import {
   postFromHistory,
   pushRecent,
 } from './collectionModel';
+import { makeBackup, parseBackup, planImport } from './backup';
 import { deleteCover, saveCover } from './covers';
 import { usePostFetcher } from './fetcher';
 import { openRepo } from './openRepo';
@@ -273,6 +274,66 @@ export function CollectionProvider({ children, onNotice }) {
   // Re-reads a saved post (fresh media links) without turning its card into a skeleton.
   const refresh = useCallback((id) => runFetch(id), [runFetch]);
 
+  // --- Tag management (phase 2) ---
+  const renameTag = useCallback(
+    async (id, name) => {
+      setTags((list) => list.map((t) => (t.id === id ? { ...t, name: name.trim() } : t)));
+      await repo.current.updateTag(id, { name: name.trim() });
+    },
+    [setTags],
+  );
+
+  const recolorTag = useCallback(
+    async (id, color) => {
+      setTags((list) => list.map((t) => (t.id === id || t.parentId === id ? { ...t, color } : t)));
+      await repo.current.updateTag(id, { color });
+    },
+    [setTags],
+  );
+
+  const deleteTag = useCallback(
+    async (id) => {
+      const gone = new Set(tagsRef.current.filter((t) => t.id === id || t.parentId === id).map((t) => t.id));
+      setTags((list) => list.filter((t) => !gone.has(t.id)));
+      setPosts((list) => list.map((p) => ({ ...p, tagIds: p.tagIds.filter((x) => !gone.has(x)) })));
+      setRecent((list) => list.filter((x) => !gone.has(x)));
+      await repo.current.deleteTag(id);
+    },
+    [setPosts, setTags],
+  );
+
+  const mergeTag = useCallback(
+    async (fromId, toId) => {
+      setPosts((list) =>
+        list.map((p) =>
+          p.tagIds.includes(fromId) ? { ...p, tagIds: [...new Set(p.tagIds.filter((x) => x !== fromId).concat(toId))] } : p,
+        ),
+      );
+      setTags((list) => list.filter((t) => t.id !== fromId).map((t) => (t.parentId === fromId ? { ...t, parentId: toId } : t)));
+      setRecent((list) => list.filter((x) => x !== fromId));
+      await repo.current.mergeTag(fromId, toId);
+    },
+    [setPosts, setTags],
+  );
+
+  // --- Backup (phase 3) ---
+  const exportBackup = useCallback(() => JSON.stringify(makeBackup(postsRef.current, tagsRef.current), null, 1), []);
+
+  // Returns { added, skipped }; throws with a readable message for bad files.
+  const importBackup = useCallback(
+    async (text) => {
+      const plan = planImport(parseBackup(text), { posts: postsRef.current, tags: tagsRef.current }, newId);
+      for (const tag of plan.tagsToCreate) await repo.current.insertTag(tag);
+      for (const post of plan.postsToInsert) await repo.current.insertPost(post);
+      setTags((list) => [...list, ...plan.tagsToCreate]);
+      setPosts((list) => [...list, ...plan.postsToInsert].sort((a, b) => b.savedAt - a.savedAt));
+      // Bring covers and fresh links back in the background.
+      plan.postsToInsert.slice(0, BACKGROUND_REFRESH_MAX).forEach((p) => runFetch(p.id));
+      return { added: plan.postsToInsert.length, skipped: plan.skipped };
+    },
+    [runFetch, setPosts, setTags],
+  );
+
   const value = useMemo(
     () => ({
       ready,
@@ -293,9 +354,16 @@ export function CollectionProvider({ children, onNotice }) {
       retryLoginFailures,
       remove,
       undoRemove,
+      renameTag,
+      recolorTag,
+      deleteTag,
+      mergeTag,
+      exportBackup,
+      importBackup,
     }),
     [ready, posts, tags, recent, downloadToo, fetcher.webView, addFromUrl, resolveId, setPostTags, createTag,
-      setDownloadToo, toggleFeatured, markDownloaded, retry, refresh, retryLoginFailures, remove, undoRemove],
+      setDownloadToo, toggleFeatured, markDownloaded, retry, refresh, retryLoginFailures, remove, undoRemove, renameTag, recolorTag, deleteTag, mergeTag,
+      exportBackup, importBackup],
   );
 
   return <CollectionContext.Provider value={value}>{children}</CollectionContext.Provider>;

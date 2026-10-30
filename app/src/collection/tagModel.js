@@ -28,7 +28,7 @@ function expand(selected, index) {
 }
 
 // Union across selected tags; UNCATEGORIZED matches posts without tags.
-// `query` matches author or caption, case-insensitively.
+// `query` matches author, caption or a tag name, case-insensitively.
 export function filterPosts(posts, selected, query, index) {
   const ids = expand(selected, index);
   const q = query.trim().toLowerCase();
@@ -39,7 +39,11 @@ export function filterPosts(posts, selected, query, index) {
       if (!tagged && !none) return false;
     }
     if (!q) return true;
-    return p.author.toLowerCase().includes(q) || (p.caption || '').toLowerCase().includes(q);
+    return (
+      p.author.toLowerCase().includes(q) ||
+      (p.caption || '').toLowerCase().includes(q) ||
+      p.tagIds.some((id) => index.byId[id]?.name.toLowerCase().includes(q))
+    );
   });
 }
 

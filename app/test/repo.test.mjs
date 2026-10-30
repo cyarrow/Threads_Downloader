@@ -97,6 +97,21 @@ for (const [name, make] of [
       assert.deepEqual((await repo.listPosts())[0].tagIds, []);
     });
 
+    test('tag rename/recolor cascades color to children; delete and merge update posts', async () => {
+      const repo = await setup();
+      await repo.insertTag({ id: 'food', name: '美食', parentId: null, color: 'orange', createdAt: 3 });
+      await repo.insertPost(post({ tagIds: ['fan-a', 'food'] }));
+      await repo.updateTag('fan', { name: '偶像', color: 'sky' });
+      let tags = await repo.listTags();
+      assert.deepEqual(tags.filter((t) => t.id.startsWith('fan')).map((t) => [t.name, t.color]), [['偶像', 'sky'], ['某團', 'sky']]);
+      await repo.mergeTag('food', 'fan');
+      assert.deepEqual([...(await repo.listPosts())[0].tagIds].sort(), ['fan', 'fan-a']);
+      await repo.deleteTag('fan');
+      tags = await repo.listTags();
+      assert.equal(tags.length, 0);
+      assert.deepEqual((await repo.listPosts())[0].tagIds, []);
+    });
+
     test('meta values upsert', async () => {
       const repo = await setup();
       assert.equal(await repo.getMeta('k'), null);

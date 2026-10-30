@@ -23,7 +23,7 @@ export function buzz(kind) {
 // the touch target collapses to 0×0 and Android drops touches outside it.
 // `delayPressIn`: for items inside scrolling lists — wait briefly before showing
 // the press so a finger that starts a scroll doesn't make the card shrink.
-const SCROLL_PRESS_DELAY_MS = 90;
+const SCROLL_PRESS_DELAY_MS = 120;
 
 export function PressScale({ children, style, containerStyle, onPress, onLongPress, disabled, delayPressIn, ...a11y }) {
   const reduce = useReduceMotion();

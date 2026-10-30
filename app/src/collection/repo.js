@@ -160,6 +160,29 @@ export function createSqlRepo(db) {
         tag.createdAt,
       ]),
 
+    async updateTag(id, patch) {
+      const cols = { name: 'name', color: 'color' };
+      const keys = Object.keys(patch).filter((k) => cols[k]);
+      if (!keys.length) return;
+      await db.runAsync(`UPDATE tags SET ${keys.map((k) => `${cols[k]} = ?`).join(', ')} WHERE id = ?`, [
+        ...keys.map((k) => patch[k]),
+        id,
+      ]);
+      // Children always share their parent's color.
+      if (patch.color) await db.runAsync('UPDATE tags SET color = ? WHERE parent_id = ?', [patch.color, id]);
+    },
+
+    // Deletes a tag (and, for a parent, its children); posts just lose those tags.
+    deleteTag: (id) => db.runAsync('DELETE FROM tags WHERE id = ? OR parent_id = ?', [id, id]),
+
+    // Moves every post tagged `fromId` to `toId`, then deletes `fromId`.
+    mergeTag: (fromId, toId) =>
+      db.withTransactionAsync(async () => {
+        await db.runAsync('INSERT OR IGNORE INTO post_tags (post_id, tag_id) SELECT post_id, ? FROM post_tags WHERE tag_id = ?', [toId, fromId]);
+        await db.runAsync('UPDATE tags SET parent_id = ? WHERE parent_id = ?', [toId, fromId]);
+        await db.runAsync('DELETE FROM tags WHERE id = ?', [fromId]);
+      }),
+
     async getMeta(key) {
       const row = await db.getFirstAsync('SELECT value FROM meta WHERE key = ?', [key]);
       return row ? row.value : null;
@@ -205,6 +228,21 @@ export function createMemoryRepo() {
     },
     async insertTag(tag) {
       tags.push({ ...tag, parentId: tag.parentId || null });
+    },
+    async updateTag(id, patch) {
+      tags = tags.map((t) => (t.id === id ? { ...t, ...(patch.name ? { name: patch.name } : {}), ...(patch.color ? { color: patch.color } : {}) } : t));
+      if (patch.color) tags = tags.map((t) => (t.parentId === id ? { ...t, color: patch.color } : t));
+    },
+    async deleteTag(id) {
+      const gone = new Set(tags.filter((t) => t.id === id || t.parentId === id).map((t) => t.id));
+      tags = tags.filter((t) => !gone.has(t.id));
+      posts = posts.map((p) => ({ ...p, tagIds: p.tagIds.filter((x) => !gone.has(x)) }));
+    },
+    async mergeTag(fromId, toId) {
+      posts = posts.map((p) =>
+        p.tagIds.includes(fromId) ? { ...p, tagIds: [...new Set(p.tagIds.filter((x) => x !== fromId).concat(toId))] } : p,
+      );
+      tags = tags.filter((t) => t.id !== fromId).map((t) => (t.parentId === fromId ? { ...t, parentId: toId } : t));
     },
     getMeta: async (key) => (key in meta ? meta[key] : null),
     async setMeta(key, value) {

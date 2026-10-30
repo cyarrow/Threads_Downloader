@@ -3,6 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { tagNameError } from '../collectionModel';
+import { reasonText } from '../suggest';
 import { cardStill } from '../media';
 import { tagHue, tagLabel } from '../tagModel';
 import { TOUCH, font, icon, radius, space, useCollectionTheme } from '../tokens';
@@ -68,14 +69,15 @@ function NewTagForm({ index, parentId: initialParent, onCreate, onCancel }) {
 
 // Multi-select picker for two-level tags. Tapping a parent that has children
 // expands it; its row starts with "整個「X」" to tag the parent itself.
-export function TagPicker({ index, selected, onToggle, onCreate, recentIds = [] }) {
+export function TagPicker({ index, selected, onToggle, onCreate, recentIds = [], suggestions = [] }) {
   const t = useCollectionTheme();
   const [open, setOpen] = useState(() =>
     index.parents.filter((p) => (index.children[p.id] || []).some((c) => selected.includes(c.id))).map((p) => p.id),
   );
   const [creating, setCreating] = useState(null); // { parentId } while the form is open
 
-  const recent = recentIds.map((id) => index.byId[id]).filter(Boolean);
+  const suggestedIds = suggestions.map((sg) => sg.tag.id);
+  const recent = recentIds.map((id) => index.byId[id]).filter((tg) => tg && !suggestedIds.includes(tg.id));
   // A parent only looks selected when the parent itself is tagged; picked
   // children show as a count so it's clear the parent isn't tagged too.
   const pickedChildren = (p) => (index.children[p.id] || []).filter((c) => selected.includes(c.id)).length;
@@ -89,6 +91,25 @@ export function TagPicker({ index, selected, onToggle, onCreate, recentIds = [] 
 
   return (
     <View style={styles.picker}>
+      {suggestions.length > 0 && (
+        <View style={styles.group}>
+          <Text style={[font.meta, { color: t.mutedForeground }]}>建議</Text>
+          {suggestions.map(({ tag, reasons }) => (
+            <View key={tag.id} style={styles.suggestion}>
+              <TagChip
+                hue={tagHue(tag, index.byId)}
+                label={tagLabel(tag, index.byId)}
+                selected={selected.includes(tag.id)}
+                onPress={() => onToggle(tag.id)}
+                a11yLabel={`${tagLabel(tag, index.byId)}，${reasonText(reasons)}`}
+              />
+              <Text style={[font.meta, styles.reason, { color: t.mutedForeground }]} numberOfLines={2}>
+                {reasonText(reasons)}
+              </Text>
+            </View>
+          ))}
+        </View>
+      )}
       {recent.length > 0 && (
         <View style={styles.group}>
           <Text style={[font.meta, { color: t.mutedForeground }]}>最近用過</Text>
@@ -195,7 +216,7 @@ function Preview({ post, loading }) {
 
 // Appears right after a link is saved (from Threads' share menu or the + button).
 // The post is already stored in 未分類, so closing never loses anything.
-export function SaveSheet({ visible, mode, post, loading, index, selected, onToggle, onCreateTag, recentIds, downloadToo, onDownloadToo, onDone, onClose }) {
+export function SaveSheet({ visible, mode, post, loading, index, selected, onToggle, onCreateTag, recentIds, suggestions, downloadToo, onDownloadToo, onDone, onClose }) {
   const t = useCollectionTheme();
   const isNew = mode === 'new';
   return (
@@ -233,7 +254,14 @@ export function SaveSheet({ visible, mode, post, loading, index, selected, onTog
         {isNew && <Preview post={post} loading={loading} />}
         <Text style={[font.headline, { color: t.foreground }]}>{isNew ? '加上標籤' : '標籤'}</Text>
         {visible && (
-          <TagPicker index={index} selected={selected} onToggle={onToggle} onCreate={onCreateTag} recentIds={recentIds} />
+          <TagPicker
+            index={index}
+            selected={selected}
+            onToggle={onToggle}
+            onCreate={onCreateTag}
+            recentIds={recentIds}
+            suggestions={suggestions}
+          />
         )}
         {isNew && selected.length === 0 && (
           <Text style={[font.meta, { color: t.mutedForeground }]}>不選也可以，會先放在「未分類」。</Text>
@@ -248,6 +276,8 @@ const styles = StyleSheet.create({
   content: { gap: space.md, paddingBottom: space.md },
   picker: { gap: space.lg },
   group: { gap: space.sm },
+  suggestion: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  reason: { flex: 1 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
   childRow: { borderLeftWidth: 2, paddingLeft: space.sm, marginLeft: space.xs, marginTop: space.xs },
   preview: { flexDirection: 'row', gap: space.md, padding: space.md, borderRadius: radius.md, alignItems: 'center' },

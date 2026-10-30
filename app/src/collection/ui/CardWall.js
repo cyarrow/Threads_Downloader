@@ -66,6 +66,9 @@ export function CardWall({ posts, index, filter, onFilter, query, onQuery, onOpe
         numColumns={columns}
         optimizeItemArrangement
         keyExtractor={(p) => p.id}
+        // Text cards and photo cards recycle separately so a reused cell never
+        // has to swap a photo layout for a quote layout mid-scroll.
+        getItemType={(p) => (p.featured ? 'featured' : p.media.length || p.cover ? 'photo' : 'text')}
         // Render a screen's worth ahead so fast scrolling doesn't reveal blank cards.
         drawDistance={height}
         onRefresh={onRefresh}

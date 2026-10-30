@@ -5,39 +5,41 @@ import { TAG_COLORS } from './palette.js';
 
 export { TAG_COLORS };
 
+// 雜誌 direction: paper-white page, ink text, one blue accent for links. Primary
+// is ink, so filled buttons and the FAB read as black type on paper.
 const light = {
-  background: '#FFFBEB',
+  background: '#F7F6F2',
   card: '#FFFFFF',
-  muted: '#FCF6F0',
-  field: '#F5EFE6',
-  foreground: '#0F172A',
-  mutedForeground: '#475569',
-  border: '#E7DCCB',
-  primary: '#D97706', // fill only, never text
-  onPrimary: '#000000',
-  accent: '#2563EB',
-  danger: '#DC2626',
-  success: '#15803D',
+  muted: '#ECEAE4',
+  field: '#ECEAE4',
+  foreground: '#1E1D1A',
+  mutedForeground: '#5E5B53',
+  border: '#D9D6CE',
+  primary: '#1E1D1A',
+  onPrimary: '#F7F6F2',
+  accent: '#2E4E8F',
+  danger: '#B3261E',
+  success: '#2F7D4A',
   scrim: 'rgba(0,0,0,0.45)',
-  badge: 'rgba(15,23,42,0.72)',
+  badge: 'rgba(30,29,26,0.72)',
   onBadge: '#FFFFFF',
 };
 
 const dark = {
-  background: '#12100E',
-  card: '#1E1B18',
-  muted: '#2A2622',
-  field: '#2A2622',
-  foreground: '#F5F1EA',
-  mutedForeground: '#B8B0A6',
-  border: '#3A352F',
-  primary: '#F59E0B',
-  onPrimary: '#000000',
-  accent: '#60A5FA',
-  danger: '#F87171',
-  success: '#4ADE80',
+  background: '#161615',
+  card: '#1F1F1D',
+  muted: '#2A2A27',
+  field: '#2A2A27',
+  foreground: '#EDEBE6',
+  mutedForeground: '#A9A69E',
+  border: '#36352F',
+  primary: '#EDEBE6',
+  onPrimary: '#161615',
+  accent: '#9DB7EA',
+  danger: '#F2978F',
+  success: '#7CC793',
   scrim: 'rgba(0,0,0,0.6)',
-  badge: 'rgba(0,0,0,0.72)',
+  badge: 'rgba(0,0,0,0.7)',
   onBadge: '#FFFFFF',
 };
 
@@ -55,6 +57,17 @@ export function tagColors(hue, scheme, selected) {
     : { bg: c.lightBg, text: c.lightText, dot: c.dot };
 }
 
+// Tag-tinted paper for text-only cards: the light tint, or the hue at 20% over the
+// dark card (same pair contrast_check.py verifies for chip text).
+export function tagTint(hue, scheme, card) {
+  const c = TAG_COLORS[hue] || TAG_COLORS.slate;
+  if (scheme !== 'dark') return c.lightBg;
+  const a = parseInt(c.dot.slice(1), 16);
+  const b = parseInt(card.slice(1), 16);
+  const ch = (shift) => Math.round(((a >> shift) & 255) * 0.2 + ((b >> shift) & 255) * 0.8);
+  return `#${((1 << 24) | (ch(16) << 16) | (ch(8) << 8) | ch(0)).toString(16).slice(1)}`;
+}
+
 export function useCollectionTheme() {
   const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
   return { ...(scheme === 'dark' ? dark : light), scheme };
@@ -67,21 +80,23 @@ export function useCollectionTheme() {
 export const BRAND_FONT = Platform.select({ ios: 'LXGW WenKai TC', default: 'WenKai' });
 
 export const font = {
-  display: { fontSize: 30, lineHeight: 36, fontWeight: '700', fontFamily: BRAND_FONT },
-  title: { fontSize: 21, lineHeight: 28, fontWeight: '700', fontFamily: BRAND_FONT },
+  display: { fontSize: 32, lineHeight: 40, letterSpacing: 1, fontFamily: BRAND_FONT },
+  title: { fontSize: 21, lineHeight: 29, fontFamily: BRAND_FONT },
   headline: { fontSize: 17, lineHeight: 22, fontWeight: '600' },
   body: { fontSize: 16, lineHeight: 24 },
   content: { fontSize: 17, lineHeight: 27, fontFamily: BRAND_FONT },
-  card: { fontSize: 16, lineHeight: 23, fontFamily: BRAND_FONT },
-  cardFeatured: { fontSize: 18, lineHeight: 26, fontWeight: '700', fontFamily: BRAND_FONT },
+  card: { fontSize: 15, lineHeight: 23, fontFamily: BRAND_FONT },
+  cardFeatured: { fontSize: 21, lineHeight: 29, fontFamily: BRAND_FONT },
   quote: { fontSize: 18, lineHeight: 28, fontFamily: BRAND_FONT },
   label: { fontSize: 14, lineHeight: 20, fontWeight: '500' },
   meta: { fontSize: 13, lineHeight: 18 },
   caption: { fontSize: 12, lineHeight: 16, fontWeight: '500' },
+  kicker: { fontSize: 12, lineHeight: 16, fontWeight: '600', letterSpacing: 1.5 },
 };
 
 export const space = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32, xxxl: 48 };
-export const radius = { sm: 8, md: 12, lg: 16, sheet: 20, full: 999 };
+// Editorial corners: nearly square boxes; only the FAB and switches stay round.
+export const radius = { xs: 3, sm: 4, md: 8, lg: 12, sheet: 16, full: 999 };
 export const icon = { sm: 16, md: 20, lg: 24 };
 
 // Android 48dp / iOS 44pt minimum touch target.

@@ -16,10 +16,11 @@ def check(name, fg, bg, need=4.5):
     r = cr(fg, bg); ok = r >= need; fails += not ok
     print(f"{'PASS' if ok else 'FAIL'} {r:5.2f} (≥{need})  {name}: {fg} on {bg}")
 
-L = dict(bg='#FFFBEB', card='#FFFFFF', muted='#FCF6F0', fg='#0F172A', mutedFg='#475569', border='#E7DCCB',
-         primary='#D97706', onPrimary='#000000', accent='#2563EB', danger='#DC2626', success='#15803D', field='#F5EFE6')
-D = dict(bg='#12100E', card='#1E1B18', muted='#2A2622', fg='#F5F1EA', mutedFg='#B8B0A6', border='#3A352F',
-         primary='#F59E0B', onPrimary='#000000', accent='#60A5FA', danger='#F87171', success='#4ADE80', field='#2A2622')
+# 雜誌 direction (2026-10-30). Keep in sync with app/src/collection/tokens.js.
+L = dict(bg='#F7F6F2', card='#FFFFFF', muted='#ECEAE4', fg='#1E1D1A', mutedFg='#5E5B53', border='#D9D6CE',
+         primary='#1E1D1A', onPrimary='#F7F6F2', accent='#2E4E8F', danger='#B3261E', success='#2F7D4A', field='#ECEAE4')
+D = dict(bg='#161615', card='#1F1F1D', muted='#2A2A27', fg='#EDEBE6', mutedFg='#A9A69E', border='#36352F',
+         primary='#EDEBE6', onPrimary='#161615', accent='#9DB7EA', danger='#F2978F', success='#7CC793', field='#2A2A27')
 for mode, t in (('LIGHT', L), ('DARK', D)):
     print(f'--- {mode}')
     for s in ('bg', 'card', 'muted', 'field'):
@@ -30,17 +31,20 @@ for mode, t in (('LIGHT', L), ('DARK', D)):
     check('success icon on card (non-text)', t['success'], t['card'], 3)
     check('primary as icon/indicator on card (non-text)', t['primary'], t['card'], 3)
     check('border vs bg (card edge, decorative)', t['border'], t['bg'], 1.2)
+    check('primary (FAB) vs bg (non-text)', t['primary'], t['bg'], 3)
+    check('selected chip (bg on fg)', t['bg'], t['fg'])
+    check('accent (精選 kicker) on bg', t['accent'], t['bg'])
 
-TAGS = {  # name: (light bg, light text, dark text, dot)
-  'rose':    ('#FFE4E6', '#9F1239', '#FDA4AF', '#F43F5E'),
-  'orange':  ('#FFEDD5', '#9A3412', '#FDBA74', '#F97316'),
-  'green':   ('#DCFCE7', '#166534', '#86EFAC', '#22C55E'),
-  'teal':    ('#CCFBF1', '#115E59', '#5EEAD4', '#14B8A6'),
-  'sky':     ('#E0F2FE', '#075985', '#7DD3FC', '#0EA5E9'),
-  'indigo':  ('#E0E7FF', '#3730A3', '#A5B4FC', '#6366F1'),
-  'violet':  ('#F3E8FF', '#6B21A8', '#D8B4FE', '#A855F7'),
-  'pink':    ('#FCE7F3', '#9D174D', '#F9A8D4', '#EC4899'),
-  'slate':   ('#F1F5F9', '#334155', '#CBD5E1', '#64748B'),
+TAGS = {  # name: (light bg, light text, dark text, dot) — mirrors app/src/collection/palette.js
+  'rose':    ('#F3E1E1', '#943040', '#EDA3AC', '#C4485C'),
+  'orange':  ('#F3E4D6', '#8A4215', '#EBB083', '#C9692B'),
+  'green':   ('#E2EADB', '#3F5E2A', '#B0CC92', '#6B8E47'),
+  'teal':    ('#DCEAE6', '#285E57', '#8DCBBE', '#3F8C80'),
+  'sky':     ('#DEE6EF', '#2A5780', '#9BBFE2', '#4C82B4'),
+  'indigo':  ('#E1E2EF', '#3A4589', '#AEB5E8', '#5864B4'),
+  'violet':  ('#E8E0EE', '#5E3D82', '#C8B1E3', '#8763AF'),
+  'pink':    ('#F2E0E8', '#8A3157', '#EBA7C5', '#B9527F'),
+  'slate':   ('#E6E4DF', '#4F4C46', '#C6C2BA', '#827D74'),
 }
 print('--- TAGS')
 for n, (lbg, ltx, dtx, dot) in TAGS.items():
@@ -49,4 +53,6 @@ for n, (lbg, ltx, dtx, dot) in TAGS.items():
     check(f'{n} selected light (white on text color)', '#FFFFFF', ltx)
     check(f'{n} chip dark (tint {dbg})', dtx, dbg); check(f'{n} chip dark text on card', dtx, D['card'])
     check(f'{n} selected dark (black on dark text color)', '#000000', dtx)
+    check(f'{n} kicker light on page bg', ltx, L['bg']); check(f'{n} kicker dark on page bg', dtx, D['bg'])
+    check(f'{n} quote text light on tint', L['fg'], lbg); check(f'{n} quote text dark on tint', D['fg'], dbg)
 print('FAILS:', fails)

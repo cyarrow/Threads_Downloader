@@ -19,3 +19,7 @@
 - 已有的手感修正要保留：按壓延遲 120ms、expo-image recyclingKey、getItemType、drawDistance。
 - 驗證方式：`cd app && npm test`（73 個）、`npx expo lint`、`npx expo export --platform web --output-dir dist` 後跑 scratchpad 的 `e2e_full.cjs`（27 項）；建 APK 用 BUILD_NUMBER=7（步驟見 `docs/overnight-progress.md`）。
 - 改完要更新 `design-system/threads-collection/MASTER.md` §2 色票與 §12 對比檢查紀錄。
+
+## 狀態（2026-10-30）
+已完成：色票、標籤膠囊、雜誌卡片（含標籤色文字卡）、報頭、「＋ 收藏連結」FAB、MASTER §0/§2/§3/§4/§9/§12 與 pages/card-wall.md。
+驗證：`npm test` 73 過、lint 無錯、`contrast_check.py` 128 組 0 失敗、網頁端完整流程淺色 / 深色同改版前（只剩已知的「新標籤自動勾選」判斷失準，以及 GitHub API 對更新檢查限流）。APK build 7。

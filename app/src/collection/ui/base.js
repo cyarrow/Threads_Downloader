@@ -69,24 +69,31 @@ export function IconButton({ name, label, onPress, color, size = icon.lg, disabl
   );
 }
 
-// Tag chip. variant: 'display' (read-only, compact) | 'choice' (selectable).
-// `neutral` chips (全部, +N, 新增) use foreground/field colors instead of a tag hue.
+// Tag chip (雜誌 style): a hairline box with square corners; the tag's hue shows
+// only as a small colour square, so the chip row reads like a contents list.
+// Selected chips fill with ink and add a checkmark (colour is never the only signal).
+// variant: 'display' (read-only, compact) | 'choice' (selectable).
+// `neutral` chips (全部, +N, 新增) have no colour square.
 export function TagChip({ label, hue, selected, onPress, variant = 'choice', neutral, iconName, trailingIcon, a11yLabel, expanded }) {
   const t = useCollectionTheme();
-  const c = neutral
-    ? selected
-      ? { bg: t.foreground, text: t.background }
-      : { bg: t.field, text: t.foreground }
-    : tagColors(hue, t.scheme, selected);
   const display = variant === 'display';
+  const on = selected && !display;
+  const text = on ? t.background : t.foreground;
+  const marker = neutral ? null : tagColors(hue, t.scheme, false).dot;
   const content = (
-    <View style={[display ? styles.chipDisplay : styles.chip, { backgroundColor: c.bg }]}>
-      {selected && !display && <Ionicons name="checkmark" size={icon.sm} color={c.text} />}
-      {iconName && <Ionicons name={iconName} size={icon.sm} color={c.text} />}
-      <Text style={[display ? font.caption : font.label, { color: c.text }]} numberOfLines={1}>
+    <View
+      style={[
+        display ? styles.chipDisplay : styles.chip,
+        on ? { backgroundColor: t.foreground, borderColor: t.foreground } : { borderColor: t.border },
+      ]}
+    >
+      {on && <Ionicons name="checkmark" size={icon.sm} color={text} />}
+      {marker && !on && <View style={[styles.square, { backgroundColor: marker }]} />}
+      {iconName && <Ionicons name={iconName} size={icon.sm} color={text} />}
+      <Text style={[display ? font.caption : font.label, { color: text }]} numberOfLines={1}>
         {label}
       </Text>
-      {trailingIcon && <Ionicons name={trailingIcon} size={icon.sm} color={c.text} />}
+      {trailingIcon && <Ionicons name={trailingIcon} size={icon.sm} color={text} />}
     </View>
   );
   if (display) return content;
@@ -182,19 +189,23 @@ const styles = StyleSheet.create({
   chip: {
     minHeight: 36,
     paddingHorizontal: space.md,
-    borderRadius: radius.full,
+    borderRadius: radius.sm,
+    borderWidth: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: space.xs,
+    gap: 6,
   },
   chipDisplay: {
     height: 24,
     paddingHorizontal: space.sm,
-    borderRadius: radius.sm,
+    borderRadius: radius.xs,
+    borderWidth: 1,
     flexDirection: 'row',
     alignItems: 'center',
     alignSelf: 'flex-start',
+    gap: space.xs,
   },
+  square: { width: 8, height: 8, borderRadius: 1 },
   sheetRoot: { flex: 1, justifyContent: 'flex-end' },
   panel: {
     maxHeight: '88%',

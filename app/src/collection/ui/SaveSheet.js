@@ -240,7 +240,9 @@ export function SaveSheet({ visible, mode, post, loading, index, selected, onTog
                 onValueChange={onDownloadToo}
                 // Off track uses mutedForeground so the control stays ≥3:1 against the sheet.
                 trackColor={{ true: t.primary, false: t.mutedForeground }}
-                thumbColor="#FFFFFF"
+                // Primary is ink (light in dark mode), so the on-thumb takes the page colour.
+                thumbColor={downloadToo ? t.onPrimary : '#FFFFFF'}
+                activeThumbColor={t.onPrimary}
                 accessibilityElementsHidden
                 importantForAccessibility="no"
               />

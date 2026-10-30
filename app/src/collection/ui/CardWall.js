@@ -9,8 +9,11 @@ import { EmptyState } from './Overlays';
 import { PostCard } from './PostCard';
 import { TagFilterBar } from './TagFilterBar';
 
-const GUTTER = space.lg; // screen edge
-const GAP = space.sm; // between cards
+// Editorial spacing: wide margins and generous gaps; the hairline under each card
+// does the separating that card boxes used to.
+const GUTTER = 20; // screen edge
+const GAP = space.lg; // between columns
+const ROW_GAP = 20; // between cards in a column
 
 // Home screen: top bar, search, tag filter, masonry wall (featured cards span
 // every column), and the + button. Layout rules: pages/card-wall.md.
@@ -25,19 +28,22 @@ export function CardWall({ posts, index, filter, onFilter, query, onQuery, onOpe
   const header = (
     <View style={styles.header}>
       {banner}
-      <View style={styles.titleRow}>
-        <Text style={[font.display, { color: t.foreground, flex: 1 }]} accessibilityRole="header">
-          收藏
-        </Text>
-        <IconButton
-          name={searching ? 'close' : 'search'}
-          label={searching ? '關閉搜尋' : '搜尋'}
-          onPress={() => {
-            if (searching) onQuery('');
-            setSearching(!searching);
-          }}
-        />
-        <IconButton name="settings-outline" label="設定" onPress={onSettings} />
+      <Text style={[font.kicker, styles.kicker, { color: t.mutedForeground }]}>THREADS 收藏誌 · {posts.length} 篇</Text>
+      <View style={[styles.masthead, { borderBottomColor: t.foreground }]}>
+        <View style={styles.titleRow}>
+          <Text style={[font.display, { color: t.foreground, flex: 1 }]} accessibilityRole="header">
+            收藏
+          </Text>
+          <IconButton
+            name={searching ? 'close' : 'search'}
+            label={searching ? '關閉搜尋' : '搜尋'}
+            onPress={() => {
+              if (searching) onQuery('');
+              setSearching(!searching);
+            }}
+          />
+          <IconButton name="settings-outline" label="設定" onPress={onSettings} />
+        </View>
       </View>
       {searching && (
         <View style={[styles.search, { backgroundColor: t.field }]}>
@@ -100,11 +106,12 @@ export function CardWall({ posts, index, filter, onFilter, query, onQuery, onOpe
       <PressScale
         onPress={onAdd}
         accessibilityRole="button"
-        accessibilityLabel="貼上連結收藏"
+        accessibilityLabel="收藏連結"
         containerStyle={[styles.fabPosition, { bottom: insets.bottom + space.lg }]}
         style={[styles.fab, elevation.level1, { backgroundColor: t.primary }]}
       >
-        <Ionicons name="add" size={28} color={t.onPrimary} />
+        <Ionicons name="add" size={22} color={t.onPrimary} />
+        <Text style={[font.label, { color: t.onPrimary }]}>收藏連結</Text>
       </PressScale>
       {overlay}
     </View>
@@ -114,16 +121,21 @@ export function CardWall({ posts, index, filter, onFilter, query, onQuery, onOpe
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   header: { paddingHorizontal: GAP / 2, paddingBottom: space.md, gap: space.md },
+  kicker: { marginBottom: -space.sm },
   titleRow: { flexDirection: 'row', alignItems: 'center', marginRight: -space.sm },
-  search: { flexDirection: 'row', alignItems: 'center', gap: space.sm, borderRadius: radius.md, paddingHorizontal: space.md, minHeight: TOUCH },
+  masthead: { borderBottomWidth: 2, paddingBottom: space.xs },
+  search: { flexDirection: 'row', alignItems: 'center', gap: space.sm, borderRadius: radius.sm, paddingHorizontal: space.md, minHeight: TOUCH },
   searchInput: { flex: 1, minWidth: 0, minHeight: TOUCH },
-  cell: { padding: GAP / 2 },
+  cell: { paddingHorizontal: GAP / 2, paddingVertical: ROW_GAP / 2 },
   fabPosition: { position: 'absolute', right: space.lg },
   fab: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    height: 52,
+    borderRadius: 26,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: space.xs,
+    paddingLeft: space.md,
+    paddingRight: space.lg + 2,
   },
 });

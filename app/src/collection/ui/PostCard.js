@@ -4,47 +4,78 @@ import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { cardStill } from '../media';
 import { tagHue, tagLabel } from '../tagModel';
-import { font, icon, radius, space, tagColors, useCollectionTheme } from '../tokens';
-import { PressScale, TagChip } from './base';
+import { font, icon, radius, space, tagColors, tagTint, useCollectionTheme } from '../tokens';
+import { PressScale } from './base';
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
-
-function Badge({ iconName, label }) {
-  const t = useCollectionTheme();
-  return (
-    <View style={[styles.badge, { backgroundColor: t.badge }]}>
-      {iconName && <Ionicons name={iconName} size={12} color={t.onBadge} />}
-      {label && <Text style={[font.caption, { color: t.onBadge }]}>{label}</Text>}
-    </View>
-  );
-}
-
-function Avatar({ author, hue }) {
-  const t = useCollectionTheme();
-  const c = tagColors(hue, t.scheme, false);
-  return (
-    <View style={[styles.avatar, { backgroundColor: c.bg }]} importantForAccessibility="no-hide-descendants">
-      <Text style={[font.caption, { color: c.text }]}>{author.slice(0, 1).toUpperCase()}</Text>
-    </View>
-  );
-}
 
 function Skeleton() {
   const t = useCollectionTheme();
   return (
-    <View>
+    <View style={styles.stack}>
       <View style={[styles.skeletonMedia, { backgroundColor: t.muted }]} />
-      <View style={styles.body}>
-        <View style={[styles.skeletonLine, { backgroundColor: t.muted, width: '90%' }]} />
-        <View style={[styles.skeletonLine, { backgroundColor: t.muted, width: '60%' }]} />
-        <Text style={[font.meta, { color: t.mutedForeground }]}>讀取中…</Text>
-      </View>
+      <View style={[styles.skeletonLine, { backgroundColor: t.muted, width: '40%' }]} />
+      <View style={[styles.skeletonLine, { backgroundColor: t.muted, width: '90%' }]} />
+      <View style={[styles.skeletonLine, { backgroundColor: t.muted, width: '60%' }]} />
+      <Text style={[font.meta, { color: t.mutedForeground }]}>讀取中…</Text>
     </View>
   );
 }
 
-// One saved post on the wall. Variants follow design-system/threads-collection:
-// media card, quote card (text-only, serif), and featured (full-row) card.
+// Section label above the text, like a magazine column heading: the tag's colour
+// as a small square plus its name. Featured cards also say 精選 and show the full
+// 大標籤 › 小標籤 path.
+function Kicker({ post, tags, hue, index }) {
+  const t = useCollectionTheme();
+  const c = tagColors(hue, t.scheme, false);
+  const name = tags[0] ? (post.featured ? tagLabel(tags[0], index.byId) : tags[0].name) : '未分類';
+  return (
+    <View style={styles.row}>
+      {post.featured && <Text style={[font.kicker, { color: t.accent }]}>精選</Text>}
+      <View style={[styles.square, { backgroundColor: c.dot }]} />
+      <Text style={[font.kicker, styles.flex, { color: tags[0] ? c.text : t.mutedForeground }]} numberOfLines={1}>
+        {name}
+        {tags.length > 1 ? ` +${tags.length - 1}` : ''}
+      </Text>
+    </View>
+  );
+}
+
+// Sans meta line closing the card: what the old photo badges said, as words.
+function Meta({ post, kind }) {
+  const t = useCollectionTheme();
+  const muted = { color: t.mutedForeground };
+  return (
+    <View style={styles.row}>
+      <Text style={[font.caption, styles.flex, muted]} numberOfLines={1}>
+        @{post.author}
+      </Text>
+      {kind && (
+        <View style={styles.item}>
+          {post.media[0]?.type === 'video' && <Ionicons name="play" size={11} color={t.mutedForeground} />}
+          <Text style={[font.caption, muted]}>{kind}</Text>
+        </View>
+      )}
+      {post.status === 'sourceDeleted' && (
+        <View style={styles.item}>
+          <Ionicons name="cloud-offline-outline" size={13} color={t.mutedForeground} />
+          <Text style={[font.caption, muted]}>已刪除</Text>
+        </View>
+      )}
+      {post.downloaded && (
+        <View style={styles.item}>
+          <Ionicons name="arrow-down-circle-outline" size={13} color={t.mutedForeground} />
+          <Text style={[font.caption, muted]}>已下載</Text>
+        </View>
+      )}
+    </View>
+  );
+}
+
+// One saved post on the wall, in the 雜誌 style (design-system/threads-collection):
+// no card box and nothing printed over the photo — image, kicker, up to three
+// lines of the post in WenKai, a meta line, then a hairline rule. Text-only posts
+// become a tag-tinted page that opens with a large 「. Featured posts span the row.
 // `wide`: the wall is in its 3-column (tablet / landscape) layout, where a
 // full-row featured card needs a flatter image to stay within the screen.
 // `maxMediaHeight` keeps any one image from filling a short (landscape) screen.
@@ -55,11 +86,11 @@ function PostCardImpl({ post, index, onPress, onLongPress, onRetry, wide, maxMed
   const first = post.media[0];
   const still = cardStill(post);
   const visual = !!(first || still);
-  const quote = !visual && post.status !== 'loading' && post.status !== 'failed';
+  const rule = { borderBottomColor: t.border };
 
   if (post.status === 'loading') {
     return (
-      <View style={[styles.card, { backgroundColor: t.card, borderColor: t.border }]} accessibilityLabel="讀取中的收藏">
+      <View style={[styles.wrap, rule]} accessibilityLabel="讀取中的收藏">
         <Skeleton />
       </View>
     );
@@ -67,7 +98,7 @@ function PostCardImpl({ post, index, onPress, onLongPress, onRetry, wide, maxMed
 
   if (post.status === 'failed') {
     return (
-      <View style={[styles.card, styles.failed, { backgroundColor: t.card, borderColor: t.border }]}>
+      <View style={[styles.failed, { borderColor: t.border }]}>
         <Ionicons name="alert-circle" size={icon.lg} color={t.danger} />
         <Text style={[font.label, { color: t.foreground }]}>{post.error === 'login' ? '需要登入 Threads' : '讀取失敗'}</Text>
         <Text style={[font.meta, { color: t.mutedForeground, textAlign: 'center' }]} numberOfLines={2}>
@@ -98,6 +129,7 @@ function PostCardImpl({ post, index, onPress, onLongPress, onRetry, wide, maxMed
     post.status === 'sourceDeleted' && '原貼文已刪除',
     post.downloaded && '已下載',
   ].filter(Boolean).join('，');
+  const metaKind = first ? (first.type === 'video' ? '影片' : post.media.length > 1 ? `${post.media.length} 張` : null) : null;
 
   return (
     <PressScale
@@ -107,73 +139,36 @@ function PostCardImpl({ post, index, onPress, onLongPress, onRetry, wide, maxMed
       accessibilityRole="button"
       accessibilityLabel={a11y}
       accessibilityHint="長按可設為精選、編輯標籤或刪除"
-      style={[styles.card, { backgroundColor: t.card, borderColor: t.border }]}
+      style={[styles.wrap, rule]}
     >
-      {visual && (
-        <View>
-          {/* recyclingKey: the list reuses card views while scrolling; without it a
-              recycled card briefly shows the previous post's image. */}
-          <Image
-            source={still}
-            recyclingKey={post.id}
-            style={[styles.media, { aspectRatio: 1 / ratio, maxHeight: maxMediaHeight, backgroundColor: t.muted }]}
-            contentFit="cover"
-            cachePolicy="memory-disk"
-            accessible={false}
-          />
-          <View style={styles.badgesTop}>
-            <View style={styles.badgeRow}>
-              {post.featured && <Badge iconName="star" label="精選" />}
-              {first?.type === 'video' && <Badge iconName="play" />}
-            </View>
-            {post.media.length > 1 && <Badge label={`1/${post.media.length}`} />}
-          </View>
-          <View style={styles.badgesBottom}>
-            {post.status === 'sourceDeleted' ? <Badge iconName="cloud-offline-outline" label="已刪除" /> : <View />}
-            {post.downloaded && <Badge iconName="download-outline" />}
-          </View>
+      {visual ? (
+        // recyclingKey: the list reuses card views while scrolling; without it a
+        // recycled card briefly shows the previous post's image.
+        <Image
+          source={still}
+          recyclingKey={post.id}
+          style={[styles.media, { aspectRatio: 1 / ratio, maxHeight: maxMediaHeight, backgroundColor: t.muted }]}
+          contentFit="cover"
+          cachePolicy="memory-disk"
+          accessible={false}
+        />
+      ) : (
+        <View style={[styles.page, { backgroundColor: tagTint(hue, t.scheme, t.card) }]}>
+          <Text style={[font.quote, styles.mark, { color: tagColors(hue, t.scheme, false).dot }]} importantForAccessibility="no">
+            「
+          </Text>
+          <Text style={[post.featured ? font.cardFeatured : font.quote, { color: t.foreground }]} numberOfLines={8}>
+            {post.caption}
+          </Text>
         </View>
       )}
-      <View style={styles.body}>
-        {quote && post.featured && (
-          <View style={styles.badgeRow}>
-            <TagChip variant="display" neutral label="★ 精選" />
-          </View>
-        )}
-        {quote ? (
-          <View style={[styles.quoteBar, { borderLeftColor: tagColors(hue, t.scheme, false).dot }]}>
-            <Text style={[font.quote, { color: t.foreground }]} numberOfLines={8}>
-              {post.caption}
-            </Text>
-          </View>
-        ) : (
-          !!post.caption && (
-            <Text style={[post.featured ? font.cardFeatured : font.card, { color: t.foreground }]} numberOfLines={post.featured ? 3 : 2}>
-              {post.caption}
-            </Text>
-          )
-        )}
-        <View style={styles.author}>
-          <Avatar author={post.author} hue={hue} />
-          <Text style={[font.meta, styles.authorText, { color: t.mutedForeground }]} numberOfLines={1}>
-            @{post.author}
-          </Text>
-          {!visual && post.downloaded && <Ionicons name="download-outline" size={icon.sm} color={t.mutedForeground} />}
-        </View>
-        {tags.length > 0 && (
-          <View style={styles.tags}>
-            {tags.slice(0, 2).map((tg) => (
-              <TagChip
-                key={tg.id}
-                variant="display"
-                hue={tagHue(tg, index.byId)}
-                label={post.featured ? tagLabel(tg, index.byId) : tg.name}
-              />
-            ))}
-            {tags.length > 2 && <TagChip variant="display" neutral label={`+${tags.length - 2}`} />}
-          </View>
-        )}
-      </View>
+      <Kicker post={post} tags={tags} hue={hue} index={index} />
+      {visual && !!post.caption && (
+        <Text style={[post.featured ? font.cardFeatured : font.card, { color: t.foreground }]} numberOfLines={3}>
+          {post.caption}
+        </Text>
+      )}
+      <Meta post={post} kind={metaKind} />
     </PressScale>
   );
 }
@@ -181,29 +176,23 @@ function PostCardImpl({ post, index, onPress, onLongPress, onRetry, wide, maxMed
 export const PostCard = memo(PostCardImpl);
 
 const styles = StyleSheet.create({
-  card: { borderRadius: radius.md, borderWidth: StyleSheet.hairlineWidth * 2, overflow: 'hidden' },
-  media: { width: '100%' },
-  body: { padding: space.md, gap: space.sm },
-  badgesTop: { position: 'absolute', top: space.sm, left: space.sm, right: space.sm, flexDirection: 'row', justifyContent: 'space-between' },
-  badgesBottom: { position: 'absolute', bottom: space.sm, left: space.sm, right: space.sm, flexDirection: 'row', justifyContent: 'space-between' },
-  badgeRow: { flexDirection: 'row', gap: space.xs },
-  badge: {
-    minHeight: 22,
-    minWidth: 22,
-    paddingHorizontal: 6,
-    borderRadius: radius.full,
-    flexDirection: 'row',
+  wrap: { gap: space.sm, paddingBottom: 14, borderBottomWidth: StyleSheet.hairlineWidth * 2 },
+  stack: { gap: space.sm },
+  media: { width: '100%', borderRadius: radius.xs, marginBottom: 2 },
+  page: { borderRadius: radius.xs, paddingHorizontal: space.md, paddingBottom: space.md, marginBottom: 2 },
+  mark: { fontSize: 40, lineHeight: 48, marginLeft: -14, marginBottom: -10 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  item: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  square: { width: 8, height: 8, borderRadius: 1 },
+  flex: { flex: 1 },
+  skeletonMedia: { width: '100%', aspectRatio: 1, borderRadius: radius.xs },
+  skeletonLine: { height: 12, borderRadius: 2 },
+  failed: {
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 3,
+    padding: space.lg,
+    gap: space.xs,
+    borderWidth: StyleSheet.hairlineWidth * 2,
+    borderRadius: radius.xs,
   },
-  quoteBar: { borderLeftWidth: 3, paddingLeft: space.sm },
-  author: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  authorText: { flex: 1 },
-  avatar: { width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  tags: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs },
-  skeletonMedia: { width: '100%', aspectRatio: 1 },
-  skeletonLine: { height: 12, borderRadius: 6 },
-  failed: { alignItems: 'center', padding: space.lg, gap: space.xs },
   retry: { minHeight: 48, justifyContent: 'center', paddingHorizontal: space.lg },
 });

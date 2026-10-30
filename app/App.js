@@ -321,6 +321,7 @@ function Home({ notice }) {
     <View style={[styles.root, { backgroundColor: t.background }]}>
       <CardWall
         posts={visible}
+        total={c.posts.length}
         index={index}
         filter={filter}
         onFilter={setFilter}

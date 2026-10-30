@@ -17,7 +17,7 @@ const ROW_GAP = 20; // between cards in a column
 
 // Home screen: top bar, search, tag filter, masonry wall (featured cards span
 // every column), and the + button. Layout rules: pages/card-wall.md.
-export function CardWall({ posts, index, filter, onFilter, query, onQuery, onOpen, onMenu, onRetry, onAdd, onSettings, banner, onRefresh, refreshing, overlay }) {
+export function CardWall({ posts, total, index, filter, onFilter, query, onQuery, onOpen, onMenu, onRetry, onAdd, onSettings, banner, onRefresh, refreshing, overlay }) {
   const t = useCollectionTheme();
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
@@ -28,7 +28,7 @@ export function CardWall({ posts, index, filter, onFilter, query, onQuery, onOpe
   const header = (
     <View style={styles.header}>
       {banner}
-      <Text style={[font.kicker, styles.kicker, { color: t.mutedForeground }]}>THREADS 收藏誌 · {posts.length} 篇</Text>
+      <Text style={[font.kicker, styles.kicker, { color: t.mutedForeground }]}>THREADS 收藏誌 · {total ?? posts.length} 篇</Text>
       <View style={[styles.masthead, { borderBottomColor: t.foreground }]}>
         <View style={styles.titleRow}>
           <Text style={[font.display, { color: t.foreground, flex: 1 }]} accessibilityRole="header">

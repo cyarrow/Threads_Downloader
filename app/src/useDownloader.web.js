@@ -14,6 +14,8 @@ export function useDownloader({ onSaved } = {}) {
   const choice = useRef(null);
   const last = useRef(null);
   const saved = useRef(onSaved);
+  const runRef = useRef(null);
+  const [working, setWorking] = useState(false);
 
   useEffect(() => {
     saved.current = onSaved;
@@ -21,11 +23,13 @@ export function useDownloader({ onSaved } = {}) {
 
   const run = useCallback(async (code, fromShare) => {
     busy.current = true;
+    setWorking(true);
     last.current = { code, fromShare };
     setState({ phase: 'loading' });
     await sleep(STEP_MS);
     if (code.startsWith('FAIL')) {
       busy.current = false;
+      setWorking(false);
       setState({ phase: 'error', title: '下載失敗', message: '網路錯誤', action: { kind: 'retry', label: '再試一次' } });
       return;
     }
@@ -38,6 +42,7 @@ export function useDownloader({ onSaved } = {}) {
       });
       if (!total) {
         busy.current = false;
+        setWorking(false);
         setState({ phase: 'idle' });
         return;
       }
@@ -49,10 +54,15 @@ export function useDownloader({ onSaved } = {}) {
     setState({ phase: 'done', videos: 0, images: total, fromShare });
     saved.current?.({ code });
     busy.current = false;
+    setWorking(false);
     const next = queue.current.shift();
     setQueued(queue.current.length);
-    if (next) run(next.code, next.fromShare);
+    if (next) runRef.current(next.code, next.fromShare);
   }, []);
+
+  useEffect(() => {
+    runRef.current = run;
+  }, [run]);
 
   const start = useCallback(
     (text, { fromShare = false } = {}) => {
@@ -86,5 +96,5 @@ export function useDownloader({ onSaved } = {}) {
     if (next) run(next.code, next.fromShare);
   }, [run]);
 
-  return { state, queued, start, retry, skip, choose, cancelChoice, webViewProps: null, webViewKey: undefined, busy: busy.current };
+  return { state, queued, start, retry, skip, choose, cancelChoice, webViewProps: null, webViewKey: undefined, busy: working };
 }

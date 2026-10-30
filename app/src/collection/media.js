@@ -1,8 +1,9 @@
-// Image source for expo-image from a stored value: a bundled asset (number, used
-// by the prototype/E2E fake data), or a file:// / https:// URI string.
+// Image source for expo-image from a stored value: a bundled asset (a number on
+// native, an { uri } object on web — used by the prototype/E2E fake data), or a
+// file:// / https:// URI string.
 export function imageSource(value) {
-  if (typeof value === 'number') return value;
-  return value ? { uri: value } : null;
+  if (!value) return null;
+  return typeof value === 'string' ? { uri: value } : value;
 }
 
 // What a card shows: the saved full-resolution cover if we have it, otherwise the

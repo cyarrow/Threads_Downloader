@@ -199,7 +199,7 @@ export function PostDetail({ post, index, onBack, onAction, onStale }) {
             iconName={post.featured ? 'star' : 'star-outline'}
             onPress={act('feature')}
           />
-          <SecondaryButton title="在 Threads 開啟" iconName="open-outline" onPress={act('open')} />
+          <SecondaryButton title="開啟原文" iconName="open-outline" onPress={act('open')} />
         </View>
       </View>
     </View>

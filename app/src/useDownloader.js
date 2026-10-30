@@ -3,7 +3,6 @@ import * as Haptics from 'expo-haptics';
 import { extractPost, parseThreadsUrl } from './threads';
 import { collectScript } from './injected';
 import { saveAll } from './download';
-import { saveThumb } from './history';
 import { canAdvance, enqueue } from './queueModel';
 
 const TIMEOUT_MS = 30000;
@@ -127,14 +126,12 @@ export function useDownloader({ onSaved } = {}) {
         setState({ phase: 'done', ...counts, author: post.author, fromShare });
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-        const thumb = await saveThumb(post.code, media[0].thumb);
         savedCallback.current?.({
           code: post.code,
           url: post.url,
           author: post.author,
           caption: post.caption,
           ...counts,
-          thumb,
           savedAt: Date.now(),
         });
         advance();

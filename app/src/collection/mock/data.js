@@ -33,7 +33,7 @@ const HOUR = 3600 * 1000;
 const now = Date.now();
 
 // media: [{ type: 'image' | 'video', image, ratio (height / width) }]
-export const POSTS = [
+const RAW_POSTS = [
   {
     id: 'p1', author: 'starlight.daily', featured: true, downloaded: true,
     caption: '今晚的安可舞台燈光太美了，整場都在尖叫。最後一首大合唱大家都哭了，這輩子一定要再來一次！',
@@ -104,9 +104,14 @@ export const POSTS = [
   },
 ];
 
+// Same shape the real app stores: each item has url + poster (here bundled images).
+const normalize = (media) => media.map((m) => ({ ...m, url: m.image, poster: m.image }));
+export const POSTS = RAW_POSTS.map((p) => ({ ...p, media: normalize(p.media) }));
+
 // What a newly pasted/shared link turns into once "loading" finishes.
-export const INCOMING = {
+const RAW_INCOMING = {
   author: 'aurora.band.fan',
   caption: '巡演台北場加開！明天中午十二點開賣，大家手速要快',
   media: [{ type: 'image', image: img.night, ratio: 0.6 }],
 };
+export const INCOMING = { ...RAW_INCOMING, media: normalize(RAW_INCOMING.media) };

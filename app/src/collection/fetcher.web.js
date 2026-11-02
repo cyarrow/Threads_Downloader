@@ -1,9 +1,12 @@
 // Web build only (used by the automated E2E tests): no WebView, so posts come
 // from fake data keyed by the link's shortcode. Codes starting with LOGIN or
-// FAIL simulate a logged-out session and a network error.
-import { useCallback, useRef } from 'react';
+// FAIL simulate a logged-out session and a network error; FLAKY fails with a
+// network error the first time and loads on retry; GONE is a page with no post
+// data (a deleted post — or, several in a row, a Threads redesign; see fetchHealth.js).
+import { useCallback, useRef, useState } from 'react';
 import { parseThreadsUrl } from '../threads';
 import { FetchError } from './fetchError';
+import { createHealthTracker } from './fetchHealth';
 
 export { FetchError };
 
@@ -34,18 +37,28 @@ const SAMPLES = {
 
 export function usePostFetcher() {
   const busy = useRef(0);
-  const fetchPost = useCallback(async (url) => {
-    const post = parseThreadsUrl(url);
-    if (!post) throw new FetchError('invalid');
-    busy.current += 1;
-    await new Promise((r) => setTimeout(r, 600));
-    busy.current -= 1;
-    const code = post.code || `S${post.id}`;
-    if (code.startsWith('LOGIN')) throw new FetchError('login');
-    if (code.startsWith('FAIL')) throw new FetchError('network');
-    const key = Object.keys(SAMPLES).find((k) => code.startsWith(k)) || 'IMG';
-    const author = (url.match(/@([\w.]+)\//) || [])[1] || 'someone.tw';
-    return { code, url: post.url, author, ...SAMPLES[key] };
-  }, []);
-  return { fetchPost, webView: null, busy: false };
+  const tries = useRef({});
+  const [health] = useState(createHealthTracker);
+  const fetchPost = useCallback(
+    async (url) => {
+      const post = parseThreadsUrl(url);
+      if (!post) throw health.record({ type: 'error', kind: 'invalid' });
+      busy.current += 1;
+      await new Promise((r) => setTimeout(r, 600));
+      busy.current -= 1;
+      const code = post.code || `S${post.id}`;
+      tries.current[code] = (tries.current[code] || 0) + 1;
+      if (code.startsWith('LOGIN')) throw health.record({ type: 'loggedOut' });
+      if (code.startsWith('FAIL')) throw health.record({ type: 'error', kind: 'network' });
+      if (code.startsWith('FLAKY') && tries.current[code] === 1) throw health.record({ type: 'error', kind: 'network' });
+      if (code.startsWith('GONE')) throw health.record({ type: 'miss', url, structural: false });
+      health.record({ type: 'ok' });
+      const key = Object.keys(SAMPLES).find((k) => code.startsWith(k)) || 'IMG';
+      const author = (url.match(/@([\w.]+)\//) || [])[1] || 'someone.tw';
+      return { code, url: post.url, author, ...SAMPLES[key] };
+    },
+    [health],
+  );
+  const noteLogin = useCallback(() => health.noteLogin(), [health]);
+  return { fetchPost, webView: null, busy: false, noteLogin };
 }

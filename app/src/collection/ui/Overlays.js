@@ -6,24 +6,29 @@ import { useReduceMotion } from '../../ui/motion';
 import { TOUCH, elevation, font, icon, radius, space, useCollectionTheme } from '../tokens';
 import { PrimaryButton, Sheet } from './base';
 
-function MenuRow({ iconName, label, onPress, danger }) {
+// A menu line, like an entry in a table of contents: hairline rule underneath,
+// square corners. `last` drops the rule on the final row of a group.
+function MenuRow({ iconName, label, onPress, danger, last }) {
   const t = useCollectionTheme();
   const color = danger ? t.danger : t.foreground;
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      style={({ pressed }) => [styles.menuRow, pressed && { backgroundColor: t.muted }]}
+      style={({ pressed }) => [
+        styles.menuRow,
+        !last && { borderBottomWidth: StyleSheet.hairlineWidth * 2, borderBottomColor: t.border },
+        pressed && { backgroundColor: t.muted },
+      ]}
     >
-      <Ionicons name={iconName} size={icon.lg} color={color} />
-      <Text style={[font.body, { color }]}>{label}</Text>
+      <Ionicons name={iconName} size={icon.md} color={color} />
+      <Text style={[font.body, styles.flex, { color }]}>{label}</Text>
     </Pressable>
   );
 }
 
 // Long-press menu. Every action here also has a visible button on the detail page.
 export function CardMenu({ post, onClose, onAction }) {
-  const t = useCollectionTheme();
   if (!post) return null;
   const act = (kind) => () => onAction(kind, post);
   return (
@@ -35,8 +40,9 @@ export function CardMenu({ post, onClose, onAction }) {
           <MenuRow iconName="download-outline" label={post.downloaded ? '再次下載' : '下載到相簿'} onPress={act('download')} />
         )}
         <MenuRow iconName="open-outline" label="在 Threads 開啟" onPress={act('open')} />
-        <View style={[styles.divider, { backgroundColor: t.border }]} />
-        <MenuRow iconName="trash-outline" label="刪除收藏" danger onPress={act('delete')} />
+        {/* The destructive action stands apart, below a gap after the last rule. */}
+        <View style={styles.divider} />
+        <MenuRow iconName="trash-outline" label="刪除收藏" danger onPress={act('delete')} last />
       </View>
     </Sheet>
   );
@@ -73,17 +79,20 @@ export function Toast({ toast, onUndo, onHide }) {
   );
 }
 
+// Empty page of the magazine: an outlined icon, a WenKai heading over a short ink
+// rule, then the explanation and one action — set flush left like the masthead.
 export function EmptyState({ filtered, onAction }) {
   const t = useCollectionTheme();
   return (
     <View style={styles.empty}>
-      <View style={[styles.emptyIcon, { backgroundColor: t.muted }]}>
-        <Ionicons name={filtered ? 'pricetag-outline' : 'bookmarks-outline'} size={36} color={t.mutedForeground} />
+      <View style={[styles.emptyIcon, { borderColor: t.border }]}>
+        <Ionicons name={filtered ? 'pricetag-outline' : 'bookmarks-outline'} size={28} color={t.mutedForeground} />
       </View>
-      <Text style={[font.headline, { color: t.foreground, textAlign: 'center' }]}>
+      <Text style={[font.title, { color: t.foreground }]}>
         {filtered ? '找不到符合的貼文' : '還沒有收藏'}
       </Text>
-      <Text style={[font.body, { color: t.mutedForeground, textAlign: 'center' }]}>
+      <View style={[styles.emptyRule, { backgroundColor: t.foreground }]} />
+      <Text style={[font.body, { color: t.mutedForeground }]}>
         {filtered ? '換個關鍵字或標籤，或清除篩選看看全部。' : '在 Threads 貼文點「分享」選「Threads 下載」，\n或按右下角的 ＋ 貼上連結。'}
       </Text>
       <View style={styles.emptyAction}>
@@ -94,29 +103,30 @@ export function EmptyState({ filtered, onAction }) {
 }
 
 const styles = StyleSheet.create({
+  flex: { flex: 1 },
   menu: { paddingBottom: space.sm },
   menuRow: {
     minHeight: 52,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: space.lg,
-    paddingHorizontal: space.sm,
-    borderRadius: radius.sm,
+    gap: space.md,
+    paddingHorizontal: space.xs,
   },
-  divider: { height: StyleSheet.hairlineWidth * 2, marginVertical: space.sm },
+  divider: { height: space.lg },
   toast: {
     position: 'absolute',
     left: space.lg,
     right: space.lg,
     minHeight: TOUCH,
-    borderRadius: radius.md,
+    borderRadius: radius.sm,
     flexDirection: 'row',
     alignItems: 'center',
     paddingLeft: space.lg,
     paddingRight: space.xs,
   },
   undo: { minHeight: TOUCH, minWidth: TOUCH, justifyContent: 'center', alignItems: 'center', paddingHorizontal: space.md },
-  empty: { alignItems: 'center', gap: space.md, paddingHorizontal: space.xl, paddingVertical: space.xxxl },
-  emptyIcon: { width: 80, height: 80, borderRadius: 40, alignItems: 'center', justifyContent: 'center' },
+  empty: { alignItems: 'flex-start', gap: space.md, paddingHorizontal: space.sm, paddingVertical: space.xxl },
+  emptyIcon: { width: 56, height: 56, borderRadius: radius.xs, borderWidth: 1, alignItems: 'center', justifyContent: 'center', marginBottom: space.xs },
+  emptyRule: { width: 32, height: 2 },
   emptyAction: { alignSelf: 'stretch', marginTop: space.sm },
 });

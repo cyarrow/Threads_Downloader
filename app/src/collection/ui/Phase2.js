@@ -9,7 +9,7 @@ import { cardStill } from '../media';
 import { TAG_HUES } from '../palette';
 import { reasonText, suggestTags } from '../suggest';
 import { tagHue, tagLabel } from '../tagModel';
-import { TOUCH, font, icon, radius, space, tagColors, useCollectionTheme } from '../tokens';
+import { BRAND_FONT, TOUCH, font, icon, radius, space, tagColors, useCollectionTheme } from '../tokens';
 import { IconButton, PrimaryButton, SecondaryButton, Sheet, TagChip } from './base';
 
 function Page({ title, onClose, children, footer }) {
@@ -25,7 +25,7 @@ function Page({ title, onClose, children, footer }) {
           </Text>
         </View>
         {children}
-        {footer && <View style={[styles.footer, { paddingBottom: insets.bottom + space.md, borderTopColor: t.border, backgroundColor: t.card }]}>{footer}</View>}
+        {footer && <View style={[styles.footer, { paddingBottom: insets.bottom + space.md, borderTopColor: t.border, backgroundColor: t.background }]}>{footer}</View>}
       </View>
     </Modal>
   );
@@ -57,7 +57,7 @@ function TagEditSheet({ tag, index, counts, onClose, onRename, onRecolor, onMerg
       <ScrollView style={styles.sheetScroll} contentContainerStyle={styles.sheetBody} keyboardShouldPersistTaps="handled">
         {mode === 'edit' && (
           <>
-            <Text nativeID="tagNameLabel" style={[font.label, { color: t.foreground }]}>名稱</Text>
+            <Text nativeID="tagNameLabel" style={[font.kicker, { color: t.mutedForeground }]}>名稱</Text>
             <TextInput
               value={name}
               onChangeText={(v) => {
@@ -76,7 +76,7 @@ function TagEditSheet({ tag, index, counts, onClose, onRename, onRecolor, onMerg
             )}
             {!tag.parentId && (
               <>
-                <Text style={[font.label, { color: t.foreground }]}>顏色（小標籤會一起換）</Text>
+                <Text style={[font.kicker, styles.fieldLabel, { color: t.mutedForeground }]}>顏色（小標籤會一起換）</Text>
                 <View style={styles.swatches}>
                   {TAG_HUES.filter((h) => h !== 'slate').map((h) => {
                     const c = tagColors(h, t.scheme, false);
@@ -90,8 +90,11 @@ function TagEditSheet({ tag, index, counts, onClose, onRename, onRecolor, onMerg
                         accessibilityLabel={`顏色 ${h}`}
                         style={styles.swatchTarget}
                       >
-                        <View style={[styles.swatch, { backgroundColor: c.dot, borderColor: on ? t.foreground : 'transparent' }]}>
-                          {on && <Ionicons name="checkmark" size={18} color="#FFFFFF" />}
+                        {/* Square like the tag marker; the chosen one gets an ink frame and ✓. */}
+                        <View style={[styles.swatchFrame, { borderColor: on ? t.foreground : 'transparent' }]}>
+                          <View style={[styles.swatch, { backgroundColor: c.dot }]}>
+                            {on && <Ionicons name="checkmark" size={18} color={t.onBadge} />}
+                          </View>
                         </View>
                       </Pressable>
                     );
@@ -165,16 +168,18 @@ export function TagManager({ posts, index, onClose, onRename, onRecolor, onMerge
   }, [posts]);
   const editingTag = editing && index.byId[editing];
 
+  // Reads like a magazine's contents page: colour square, name, count, each line
+  // on a hairline; 小標籤 are indented under their 大標籤 with a smaller square.
   const Row = ({ tag, child }) => (
     <Pressable
       onPress={() => setEditing(tag.id)}
       accessibilityRole="button"
       accessibilityHint="改名、換顏色、合併或刪除"
-      style={({ pressed }) => [styles.tagRow, child && styles.tagRowChild, pressed && { backgroundColor: t.muted }]}
+      style={({ pressed }) => [styles.tagRow, child && styles.tagRowChild, { borderBottomColor: t.border }, pressed && { backgroundColor: t.muted }]}
     >
-      <View style={[styles.dot, { backgroundColor: tagColors(tagHue(tag, index.byId), t.scheme, false).dot }]} />
-      <Text style={[font.body, { color: t.foreground, flex: 1 }]}>{tag.name}</Text>
-      <Text style={[font.meta, { color: t.mutedForeground }]}>{counts[tag.id] || 0} 篇</Text>
+      <View style={[child ? styles.squareSmall : styles.square, { backgroundColor: tagColors(tagHue(tag, index.byId), t.scheme, false).dot }]} />
+      <Text style={[child ? font.body : font.headline, { color: t.foreground, flex: 1 }]}>{tag.name}</Text>
+      <Text style={[font.caption, styles.count, { color: t.mutedForeground }]}>{counts[tag.id] || 0} 篇</Text>
       <Ionicons name="chevron-forward" size={icon.sm} color={t.mutedForeground} />
     </Pressable>
   );
@@ -186,7 +191,7 @@ export function TagManager({ posts, index, onClose, onRename, onRecolor, onMerge
           <Text style={[font.body, { color: t.mutedForeground }]}>還沒有標籤。收藏貼文時可以新增。</Text>
         )}
         {index.parents.map((p) => (
-          <View key={p.id} style={[styles.group, { backgroundColor: t.card, borderColor: t.border }]}>
+          <View key={p.id}>
             <Row tag={p} />
             {(index.children[p.id] || []).map((c) => (
               <Row key={c.id} tag={c} child />
@@ -235,29 +240,35 @@ export function Triage({ posts, index, onClose, onTag, onMoreTags }) {
         <View style={styles.center}>
           <Ionicons name="checkmark-circle" size={56} color={t.success} />
           <Text style={[font.title, { color: t.foreground }]}>這次分類了 {done.tagged} 篇</Text>
+          <View style={[styles.shortRule, { backgroundColor: t.foreground }]} />
           {done.skipped > 0 && <Text style={[font.body, { color: t.mutedForeground }]}>略過 {done.skipped} 篇，之後可以再整理</Text>}
           <PrimaryButton title="回到收藏" onPress={onClose} />
         </View>
       ) : post ? (
         <>
-          <View style={[styles.progress, { backgroundColor: t.field }]} accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: queue.length, now: pos }}>
+          {/* Progress as a thin ink rule growing along a hairline. */}
+          <View style={[styles.progress, { backgroundColor: t.border }]} accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: queue.length, now: pos }}>
             <View style={[styles.progressBar, { backgroundColor: t.foreground, width: `${(pos / queue.length) * 100}%` }]} />
           </View>
           <ScrollView contentContainerStyle={styles.triageBody}>
-            <View style={[styles.triageCard, { backgroundColor: t.card, borderColor: t.border }]}>
-              {still && <Image source={still} style={styles.triageImage} contentFit="cover" accessible={false} />}
-              <View style={styles.triageText}>
-                {!!post.caption && (
-                  <Text style={[still ? font.card : font.quote, { color: t.foreground }]} numberOfLines={still ? 3 : 6}>
-                    {post.caption}
-                  </Text>
-                )}
-                <Text style={[font.meta, { color: t.mutedForeground }]}>@{post.author}</Text>
+            {/* The post as it sits on the wall: no box, image, kicker, words, meta, rule. */}
+            <View style={[styles.triageCard, { borderBottomColor: t.border }]}>
+              {still && <Image source={still} style={[styles.triageImage, { backgroundColor: t.muted }]} contentFit="cover" accessible={false} />}
+              <View style={styles.kickerRow}>
+                <View style={[styles.square, { backgroundColor: tagColors('slate', t.scheme, false).dot }]} />
+                <Text style={[font.kicker, { color: t.mutedForeground }]}>未分類</Text>
               </View>
+              {!!post.caption && (
+                <Text style={[still ? font.card : font.quote, { color: t.foreground }]} numberOfLines={still ? 3 : 6}>
+                  {post.caption}
+                </Text>
+              )}
+              <Text style={[font.caption, { color: t.mutedForeground }]}>@{post.author}</Text>
             </View>
           </ScrollView>
           <View style={styles.triageActions}>
             {suggestions.map(({ tag, reasons }) => (
+              // Suggested tag as a large outlined chip: colour square + 大標籤 › 小標籤, reason below.
               <Pressable
                 key={tag.id}
                 onPress={() => {
@@ -266,14 +277,16 @@ export function Triage({ posts, index, onClose, onTag, onMoreTags }) {
                 }}
                 accessibilityRole="button"
                 accessibilityLabel={`放到 ${tagLabel(tag, index.byId)}，${reasonText(reasons)}`}
-                style={({ pressed }) => [styles.bigTag, { backgroundColor: tagColors(tagHue(tag, index.byId), t.scheme, false).bg, opacity: pressed ? 0.8 : 1 }]}
+                style={({ pressed }) => [styles.bigTag, { borderColor: t.border, opacity: pressed ? 0.75 : 1 }]}
               >
-                <Text style={[font.headline, { color: tagColors(tagHue(tag, index.byId), t.scheme, false).text }]}>
-                  {tagLabel(tag, index.byId)}
-                </Text>
-                <Text style={[font.meta, { color: tagColors(tagHue(tag, index.byId), t.scheme, false).text }]} numberOfLines={1}>
-                  {reasonText(reasons)}
-                </Text>
+                <View style={[styles.square, { backgroundColor: tagColors(tagHue(tag, index.byId), t.scheme, false).dot }]} />
+                <View style={styles.flex}>
+                  <Text style={[font.headline, { color: t.foreground }]}>{tagLabel(tag, index.byId)}</Text>
+                  <Text style={[font.meta, { color: t.mutedForeground }]} numberOfLines={1}>
+                    {reasonText(reasons)}
+                  </Text>
+                </View>
+                <Ionicons name="arrow-forward" size={icon.md} color={t.foreground} />
               </Pressable>
             ))}
             <View style={styles.row}>
@@ -298,10 +311,15 @@ export function RediscoverCard({ pick, onOpen, onShuffle, onDismiss }) {
   const t = useCollectionTheme();
   if (!pick) return null;
   return (
-    <View style={[styles.rediscover, { backgroundColor: t.card, borderColor: t.border }]}>
+    // A 回顧 column: ink rule on top, a kicker, the WenKai heading, three thumbnails,
+    // closed by a hairline — no box, like a recurring section in a magazine.
+    <View style={[styles.rediscover, { borderTopColor: t.foreground, borderBottomColor: t.border }]}>
       <View style={styles.rediscoverHead}>
-        <Ionicons name="time-outline" size={icon.md} color={t.foreground} />
         <View style={styles.flex}>
+          <View style={styles.kickerRow}>
+            <Ionicons name="time-outline" size={icon.sm} color={t.mutedForeground} />
+            <Text style={[font.kicker, { color: t.mutedForeground }]}>回顧</Text>
+          </View>
           <Text style={[font.title, { color: t.foreground }]}>{pick.title}</Text>
           <Text style={[font.meta, { color: t.mutedForeground }]}>{pick.subtitle}</Text>
         </View>
@@ -339,39 +357,62 @@ export function RediscoverCard({ pick, onOpen, onShuffle, onDismiss }) {
   );
 }
 
+const RULE = StyleSheet.hairlineWidth * 2;
+const GUTTER = 20; // same screen margin as the card wall
+
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   page: { flex: 1 },
-  topBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: space.xs, borderBottomWidth: StyleSheet.hairlineWidth * 2 },
+  topBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: space.xs, borderBottomWidth: RULE },
   topTitle: { flex: 1, marginLeft: space.xs },
-  footer: { borderTopWidth: StyleSheet.hairlineWidth * 2, padding: space.lg },
-  list: { padding: space.lg, gap: space.md },
-  group: { borderRadius: radius.md, borderWidth: 1, overflow: 'hidden' },
-  tagRow: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: space.md, paddingHorizontal: space.lg },
-  tagRowChild: { paddingLeft: space.xxl },
-  dot: { width: 12, height: 12, borderRadius: 6 },
+  footer: { borderTopWidth: RULE, padding: space.lg },
+  list: { paddingHorizontal: GUTTER - space.sm, paddingVertical: space.sm },
+  tagRow: {
+    minHeight: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.md,
+    paddingHorizontal: space.sm,
+    borderBottomWidth: RULE,
+  },
+  tagRowChild: { minHeight: TOUCH, paddingLeft: space.sm + 20 },
+  square: { width: 8, height: 8, borderRadius: 1 },
+  squareSmall: { width: 6, height: 6, borderRadius: 1, marginHorizontal: 1 },
+  count: { letterSpacing: 0.5, fontVariant: ['tabular-nums'] },
+  fieldLabel: { marginTop: space.xs },
   sheetScroll: { flexGrow: 0 },
   sheetBody: { gap: space.md, paddingBottom: space.md },
-  input: { minHeight: TOUCH, borderRadius: radius.md, borderWidth: 1.5, paddingHorizontal: space.md },
+  input: { minHeight: TOUCH, borderRadius: radius.sm, borderWidth: 1.5, paddingHorizontal: space.md },
   inline: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
-  swatches: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs },
+  swatches: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs, marginLeft: -space.xs },
   swatchTarget: { width: TOUCH, height: TOUCH, alignItems: 'center', justifyContent: 'center' },
-  swatch: { width: 34, height: 34, borderRadius: 17, borderWidth: 3, alignItems: 'center', justifyContent: 'center' },
+  swatchFrame: { padding: 2, borderWidth: 2, borderRadius: radius.sm },
+  swatch: { width: 32, height: 32, borderRadius: radius.xs, alignItems: 'center', justifyContent: 'center' },
   row: { flexDirection: 'row', gap: space.sm },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: space.md, padding: space.xl },
-  progress: { height: 4 },
-  progressBar: { height: 4 },
-  triageBody: { padding: space.lg },
-  triageCard: { borderRadius: radius.md, borderWidth: 1, overflow: 'hidden' },
-  triageImage: { width: '100%', aspectRatio: 4 / 3 },
-  triageText: { padding: space.md, gap: space.sm },
-  triageActions: { padding: space.lg, gap: space.sm },
-  bigTag: { minHeight: 56, borderRadius: radius.md, paddingHorizontal: space.lg, paddingVertical: space.sm, justifyContent: 'center' },
-  rediscover: { borderRadius: radius.md, borderWidth: 1, padding: space.md, gap: space.md },
-  rediscoverHead: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  shortRule: { width: 32, height: 2 },
+  progress: { height: 2, marginHorizontal: GUTTER, marginTop: space.lg },
+  progressBar: { height: 2 },
+  triageBody: { paddingHorizontal: GUTTER, paddingTop: space.lg },
+  triageCard: { gap: space.sm, paddingBottom: 14, borderBottomWidth: RULE },
+  triageImage: { width: '100%', aspectRatio: 4 / 3, borderRadius: radius.xs, marginBottom: 2 },
+  kickerRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  triageActions: { paddingHorizontal: GUTTER, paddingVertical: space.lg, gap: space.sm },
+  bigTag: {
+    minHeight: 60,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.md,
+    borderWidth: 1,
+    borderRadius: radius.sm,
+    paddingHorizontal: space.lg,
+    paddingVertical: space.sm,
+  },
+  rediscover: { borderTopWidth: 2, borderBottomWidth: RULE, paddingTop: space.sm, paddingBottom: space.xs, gap: space.md },
+  rediscoverHead: { flexDirection: 'row', alignItems: 'flex-start', gap: space.sm, marginRight: -space.sm },
   thumbs: { flexDirection: 'row', gap: space.sm },
-  thumb: { flex: 1, aspectRatio: 1, borderRadius: radius.sm, overflow: 'hidden', justifyContent: 'center' },
-  thumbText: { padding: space.xs },
-  shuffle: { minHeight: 40, flexDirection: 'row', alignItems: 'center', gap: space.xs, alignSelf: 'flex-start' },
+  thumb: { flex: 1, aspectRatio: 1, borderRadius: radius.xs, overflow: 'hidden', justifyContent: 'center' },
+  thumbText: { padding: space.sm, fontFamily: BRAND_FONT },
+  shuffle: { minHeight: TOUCH, marginTop: -space.sm, flexDirection: 'row', alignItems: 'center', gap: space.xs, alignSelf: 'flex-start' },
 });

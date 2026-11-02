@@ -137,7 +137,8 @@ export function Sheet({ visible, onClose, title, children, footer }) {
         <Animated.View style={[styles.panel, { backgroundColor: t.card, paddingBottom: insets.bottom + space.lg }, panelMotion]}>
           <View style={[styles.handle, { backgroundColor: t.border }]} />
           {title && (
-            <View style={styles.sheetHeader}>
+            // Like a column heading: WenKai title sitting on a hairline rule.
+            <View style={[styles.sheetHeader, { borderBottomColor: t.border }]}>
               <Text style={[font.title, { color: t.foreground, flex: 1 }]} accessibilityRole="header">
                 {title}
               </Text>
@@ -152,6 +153,8 @@ export function Sheet({ visible, onClose, title, children, footer }) {
   );
 }
 
+// Buttons (雜誌): ink-filled primary and hairline-outlined secondary, with the
+// same near-square corners as the tag chips so a row of actions reads as one set.
 export function PrimaryButton({ title, iconName, onPress, disabled }) {
   const t = useCollectionTheme();
   return (
@@ -163,7 +166,7 @@ export function PrimaryButton({ title, iconName, onPress, disabled }) {
       style={[styles.primary, { backgroundColor: t.primary, opacity: disabled ? 0.45 : 1 }]}
     >
       {iconName && <Ionicons name={iconName} size={icon.md} color={t.onPrimary} />}
-      <Text style={[font.headline, { color: t.onPrimary }]}>{title}</Text>
+      <Text style={[font.headline, styles.primaryText, { color: t.onPrimary }]}>{title}</Text>
     </PressScale>
   );
 }
@@ -176,7 +179,7 @@ export function SecondaryButton({ title, iconName, onPress, danger }) {
       onPress={onPress}
       accessibilityRole="button"
       containerStyle={styles.flex}
-      style={[styles.secondary, { backgroundColor: t.field }]}
+      style={[styles.secondary, { borderColor: t.border }]}
     >
       {iconName && <Ionicons name={iconName} size={icon.md} color={color} />}
       <Text style={[font.label, { color }]}>{title}</Text>
@@ -214,20 +217,27 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.lg,
     paddingTop: space.sm,
   },
-  handle: { alignSelf: 'center', width: 36, height: 5, borderRadius: 3, marginBottom: space.sm },
-  sheetHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: space.sm },
+  handle: { alignSelf: 'center', width: 32, height: 4, borderRadius: 2, marginBottom: space.sm },
+  sheetHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: space.md,
+    borderBottomWidth: StyleSheet.hairlineWidth * 2,
+  },
   primary: {
     minHeight: 52,
-    borderRadius: radius.md,
+    borderRadius: radius.sm,
     flexDirection: 'row',
     gap: space.sm,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: space.xl,
   },
+  primaryText: { letterSpacing: 1 },
   secondary: {
     minHeight: TOUCH,
-    borderRadius: radius.md,
+    borderRadius: radius.sm,
+    borderWidth: 1,
     flexDirection: 'row',
     gap: space.sm,
     alignItems: 'center',

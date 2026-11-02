@@ -37,3 +37,11 @@
 - 三個創新 agent 與研究 agent 都已完成；整理成 `docs/overnight-report.md`。
 - 視覺方向比較頁：https://claude.ai/artifact/DyG87Vk2Prgpx1B7Tp9X7R
 - 待使用者決定：視覺方向、快速面板／直接收藏、批次選取、合併到 main。
+
+## 2026-11-02 晚（使用者去睡覺，做完再回報）
+- 已合併並推送：讀取失敗提醒、雜誌風格延伸、快速收藏面板＋標籤跳動修正、自動備份、播放鍵置中、同時只播一支影片。APK build 8 已給使用者（不含影片修正）。
+- 進行中（兩個 agent，base ef847a8）：
+  1. `worktree-agent-a3a664c0a67ea8f64`：底部分頁 翻翻｜收藏｜串流、＋移到右上、「所有標籤 ›」、翻翻滑卡（右＝精選、左＝下一張、上＝加標籤；未分類＝整理模式）、串流單欄。可能改用 Expo Router（注意 expo-share-intent 設定）。
+  2. `worktree-agent-a659b2f195e65b8f7`：主題系統（雜誌／底片），設定裡切換；底片＝相片白邊＋收藏日期印字、無編號、齒孔報頭；深色可讀性硬性要求。
+- 兩個都完成後：合併 → 把底片套到新的分頁畫面（翻翻／串流／所有標籤／CardWall 報頭）→ 用 `/anthropic-skills:ui-ux-pro-max` 檢查並修正 → 全部測試 → APK build 9 → 回報使用者。
+- 預覽：https://claude.ai/artifact/7zKzMLyGXQ1r2owkjrKEDr

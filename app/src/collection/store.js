@@ -12,6 +12,7 @@ import {
   pushRecent,
 } from './collectionModel';
 import { makeBackup, parseBackup, planImport } from './backup';
+import { useAutoBackup } from './autoBackup';
 import { deleteCover, saveCover } from './covers';
 import { usePostFetcher } from './fetcher';
 import { openRepo } from './openRepo';
@@ -351,7 +352,13 @@ export function CollectionProvider({ children, onNotice }) {
   );
 
   // --- Backup (phase 3) ---
-  const exportBackup = useCallback(() => JSON.stringify(makeBackup(postsRef.current, tagsRef.current), null, 1), []);
+  // Auto backup to a picked folder + the backup reminder (see autoBackup.js).
+  const autoBackup = useAutoBackup({ repo, ready, posts, postsRef, tagsRef });
+  const { noteManualExport } = autoBackup;
+  const exportBackup = useCallback(() => {
+    noteManualExport();
+    return JSON.stringify(makeBackup(postsRef.current, tagsRef.current), null, 1);
+  }, [noteManualExport]);
 
   // Returns { added, skipped }; throws with a readable message for bad files.
   const importBackup = useCallback(
@@ -397,10 +404,12 @@ export function CollectionProvider({ children, onNotice }) {
       mergeTag,
       exportBackup,
       importBackup,
+      autoBackup,
     }),
     [ready, posts, tags, recent, downloadToo, fetcher.webView, addFromUrl, resolveId, setPostTags, createTag,
       setDownloadToo, toggleFeatured, quickSave, setQuickSave, markDownloaded, retry, refresh, retryLoginFailures, retryAllFailed, remove, undoRemove, renameTag, recolorTag, deleteTag, mergeTag,
-      exportBackup, importBackup],
+      exportBackup, importBackup,
+      autoBackup],
   );
 
   return <CollectionContext.Provider value={value}>{children}</CollectionContext.Provider>;

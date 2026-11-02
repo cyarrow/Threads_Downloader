@@ -26,6 +26,7 @@ import { FetchHealth } from './src/collection/ui/FetchHealth';
 import { CardMenu, Toast } from './src/collection/ui/Overlays';
 import { PostDetail } from './src/collection/ui/PostDetail';
 import { SaveSheet } from './src/collection/ui/SaveSheet';
+import { BackupNote } from './src/collection/ui/BackupNote';
 import {
   AddLinkSheet,
   DownloadPickerSheet,
@@ -346,6 +347,7 @@ function Home({ notice }) {
         banner={
           <View style={styles.banners}>
             <FetchHealth posts={c.posts} onRetryAll={c.retryAllFailed} onLogin={() => setLoginOpen(true)} />
+            <BackupNote onSetup={() => setSettingsOpen(true)} />
             <UpdateBanner
               release={update}
               onDownload={() => Linking.openURL(update.apkUrl)}

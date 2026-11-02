@@ -54,7 +54,9 @@ function MediaItem({ item, index, width, height, placeholder, onStale }) {
           onPress={() => setPlaying(true)}
           accessibilityRole="button"
           accessibilityLabel="播放影片"
-          style={styles.play}
+          // Explicit size instead of absoluteFill: on Android the stretched
+          // absolute Pressable collapsed to its content, pinning ▶ to the top.
+          style={[styles.play, { width, height }]}
         >
           <View style={[styles.playCircle, { backgroundColor: t.badge }]}>
             <Ionicons name="play" size={28} color={t.onBadge} />
@@ -215,7 +217,7 @@ const styles = StyleSheet.create({
   sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: space.sm },
   editTags: { minHeight: TOUCH, flexDirection: 'row', alignItems: 'center', gap: 2 },
   tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
-  play: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
+  play: { position: 'absolute', top: 0, left: 0, alignItems: 'center', justifyContent: 'center' },
   playCircle: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center' },
   counter: { position: 'absolute', top: space.md, right: space.md, paddingHorizontal: space.sm, paddingVertical: 2, borderRadius: radius.full },
   dots: { flexDirection: 'row', justifyContent: 'center', gap: 2, paddingTop: space.sm },

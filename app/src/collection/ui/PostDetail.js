@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { FlatList, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Image } from 'expo-image';
 import { useEventListener } from 'expo';
@@ -6,6 +6,7 @@ import { VideoView, useVideoPlayer } from 'expo-video';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { imageSource } from '../media';
+import { playbackFocus, playingAfterPageChange } from '../playback';
 import { tagHue, tagLabel } from '../tagModel';
 import { TOUCH, font, icon, radius, space, tagColors, tagTint, useCollectionTheme } from '../tokens';
 import { IconButton, PrimaryButton, SecondaryButton, TagChip } from './base';
@@ -21,7 +22,10 @@ function formatDate(ts) {
   return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
 }
 
-// Plays only after the user taps play (never autoplays).
+// Plays only after the user taps play (never autoplays). Mounted only while its
+// page is playing; unmounting (page swiped away, detail closed) releases the
+// player, which stops it. Backgrounding the app is handled by expo-video itself:
+// staysActiveInBackground is false by default, so it pauses on Android/iOS.
 function InlineVideo({ uri, width, height, onError }) {
   const player = useVideoPlayer(imageSource(uri), (p) => {
     p.loop = false;
@@ -31,12 +35,18 @@ function InlineVideo({ uri, width, height, onError }) {
   useEventListener(player, 'statusChange', ({ status }) => {
     if (status === 'error') onError?.();
   });
+  // One video at a time app-wide: starting this one (▶ or the native controls)
+  // pauses whichever was playing.
+  useEventListener(player, 'playingChange', ({ isPlaying }) => {
+    if (isPlaying) playbackFocus.claim(player);
+    else playbackFocus.drop(player);
+  });
+  useEffect(() => () => playbackFocus.drop(player), [player]);
   return <VideoView player={player} style={{ width, height }} contentFit="contain" nativeControls />;
 }
 
-function MediaItem({ item, index, width, height, placeholder, onStale }) {
+function MediaItem({ item, index, width, height, placeholder, playing, onPlay, onStale }) {
   const t = useCollectionTheme();
-  const [playing, setPlaying] = useState(false);
   const isVideo = item.type === 'video';
   if (isVideo && playing) {
     return <InlineVideo uri={item.url} width={width} height={height} onError={onStale} />;
@@ -55,7 +65,7 @@ function MediaItem({ item, index, width, height, placeholder, onStale }) {
       />
       {isVideo && (
         <Pressable
-          onPress={() => setPlaying(true)}
+          onPress={onPlay}
           accessibilityRole="button"
           accessibilityLabel="播放影片"
           // Explicit size instead of absoluteFill: on Android the stretched
@@ -74,11 +84,19 @@ function MediaItem({ item, index, width, height, placeholder, onStale }) {
 function MediaPager({ media, width, placeholder, onStale }) {
   const t = useCollectionTheme();
   const [page, setPage] = useState(0);
+  // The page whose video is playing (-1 = none). Held here, not per item, so only
+  // the page on screen can have a player: FlatList keeps neighbouring pages
+  // mounted, and a video swiped away would otherwise keep playing off-screen.
+  const [playingIndex, setPlayingIndex] = useState(-1);
   const list = useRef(null);
   const height = width * clamp(media[0].ratio || 1, 0.75, 1.25);
+  const settle = (i) => {
+    setPage(i);
+    setPlayingIndex((p) => playingAfterPageChange(p, i));
+  };
   const go = (i) => {
     list.current?.scrollToIndex({ index: i, animated: true });
-    setPage(i);
+    settle(i);
   };
   return (
     <View>
@@ -89,10 +107,20 @@ function MediaPager({ media, width, placeholder, onStale }) {
         pagingEnabled
         showsHorizontalScrollIndicator={false}
         keyExtractor={(_, i) => String(i)}
-        onMomentumScrollEnd={(e) => setPage(Math.round(e.nativeEvent.contentOffset.x / width))}
+        onMomentumScrollEnd={(e) => settle(Math.round(e.nativeEvent.contentOffset.x / width))}
         getItemLayout={(_, i) => ({ length: width, offset: width * i, index: i })}
+        extraData={playingIndex}
         renderItem={({ item, index }) => (
-          <MediaItem item={item} index={index} width={width} height={height} placeholder={placeholder} onStale={onStale} />
+          <MediaItem
+            item={item}
+            index={index}
+            width={width}
+            height={height}
+            placeholder={placeholder}
+            playing={playingIndex === index}
+            onPlay={() => setPlayingIndex(index)}
+            onStale={onStale}
+          />
         )}
       />
       {media.length > 1 && (

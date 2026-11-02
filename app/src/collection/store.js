@@ -243,6 +243,15 @@ export function CollectionProvider({ children, onNotice }) {
     [patch],
   );
 
+  // Explicit value (the 翻翻 deck sets 精選 and its undo puts the old value back).
+  const setFeatured = useCallback(
+    (id, featured) => {
+      const post = postsRef.current.find((p) => p.id === id);
+      if (post && !!post.featured !== !!featured) return patch(id, { featured: !!featured });
+    },
+    [patch],
+  );
+
   const markDownloaded = useCallback(
     async (code) => {
       for (const p of postsRef.current.filter((x) => x.code === code && !x.downloaded)) {
@@ -391,6 +400,7 @@ export function CollectionProvider({ children, onNotice }) {
       setDownloadToo,
       setQuickSave,
       toggleFeatured,
+      setFeatured,
       markDownloaded,
       retry,
       refresh,
@@ -407,7 +417,7 @@ export function CollectionProvider({ children, onNotice }) {
       autoBackup,
     }),
     [ready, posts, tags, recent, downloadToo, fetcher.webView, addFromUrl, resolveId, setPostTags, createTag,
-      setDownloadToo, toggleFeatured, quickSave, setQuickSave, markDownloaded, retry, refresh, retryLoginFailures, retryAllFailed, remove, undoRemove, renameTag, recolorTag, deleteTag, mergeTag,
+      setDownloadToo, toggleFeatured, setFeatured, quickSave, setQuickSave, markDownloaded, retry, refresh, retryLoginFailures, retryAllFailed, remove, undoRemove, renameTag, recolorTag, deleteTag, mergeTag,
       exportBackup, importBackup,
       autoBackup],
   );

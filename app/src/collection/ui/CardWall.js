@@ -3,11 +3,12 @@ import { StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-na
 import { FlashList } from '@shopify/flash-list';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { TOUCH, elevation, font, icon, radius, space, useCollectionTheme } from '../tokens';
-import { IconButton, PressScale } from './base';
+import { TOUCH, font, icon, radius, space, useCollectionTheme } from '../tokens';
+import { HeaderActions } from './HeaderActions';
+import { IconButton, TagChip } from './base';
 import { EmptyState } from './Overlays';
 import { PostCard } from './PostCard';
-import { TagFilterBar } from './TagFilterBar';
+import { TagScrollRow } from './TagScrollRow';
 
 // Editorial spacing: wide margins and generous gaps; the hairline under each card
 // does the separating that card boxes used to.
@@ -15,34 +16,48 @@ const GUTTER = 20; // screen edge
 const GAP = space.lg; // between columns
 const ROW_GAP = 20; // between cards in a column
 
-// Home screen: top bar, search, tag filter, masonry wall (featured cards span
-// every column), and the + button. Layout rules: pages/card-wall.md.
-export function CardWall({ posts, total, index, filter, onFilter, query, onQuery, onOpen, onMenu, onRetry, onAdd, onSettings, banner, onRefresh, refreshing, overlay }) {
+// The 收藏 tab: masthead, search, one scrolling row of tag chips ending in
+// 「所有標籤 ›」, and the masonry wall (featured cards span every column).
+// Layout rules: pages/card-wall.md. The ＋ 收藏連結 button lives in the
+// masthead next to 搜尋 and 設定 (it used to float bottom-right).
+// The same wall also renders a tag page (`title` + `onBack`, and `filterBar`
+// replacing the chip row with that tag's 小標籤).
+// `searching` / `onSearching` are optional: pass them to control the search
+// field from outside (other tabs' 搜尋 opens it here).
+export function CardWall({
+  posts, total, index, filter, onFilter, query, onQuery, onOpen, onMenu, onRetry, onAdd, onSettings, banner,
+  onRefresh, refreshing, overlay, searching: searchingProp, onSearching, title = '收藏', onBack, kicker, filterBar, onAllTags,
+}) {
   const t = useCollectionTheme();
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
-  const [searching, setSearching] = useState(!!query);
+  const [searchingLocal, setSearchingLocal] = useState(!!query);
+  const searching = searchingProp ?? searchingLocal;
+  const setSearching = onSearching ?? setSearchingLocal;
   const columns = width >= 600 ? 3 : 2;
   const filtered = filter.length > 0 || !!query.trim();
 
   const header = (
     <View style={styles.header}>
       {banner}
-      <Text style={[font.kicker, styles.kicker, { color: t.mutedForeground }]}>THREADS 收藏誌 · {total ?? posts.length} 篇</Text>
+      {kicker !== null && (
+        <Text style={[font.kicker, styles.kicker, { color: t.mutedForeground }]}>{kicker ?? `THREADS 收藏誌 · ${total ?? posts.length} 篇`}</Text>
+      )}
       <View style={[styles.masthead, { borderBottomColor: t.foreground }]}>
-        <View style={styles.titleRow}>
-          <Text style={[font.display, { color: t.foreground, flex: 1 }]} accessibilityRole="header">
-            收藏
+        <View style={[styles.titleRow, onBack && styles.titleRowBack]}>
+          {onBack && <IconButton name="chevron-back" label="返回所有標籤" onPress={onBack} />}
+          <Text style={[font.display, styles.title, { color: t.foreground }]} numberOfLines={1} accessibilityRole="header">
+            {title}
           </Text>
-          <IconButton
-            name={searching ? 'close' : 'search'}
-            label={searching ? '關閉搜尋' : '搜尋'}
-            onPress={() => {
+          <HeaderActions
+            onAdd={onAdd}
+            searching={searching}
+            onSearch={() => {
               if (searching) onQuery('');
               setSearching(!searching);
             }}
+            onSettings={onSettings}
           />
-          <IconButton name="settings-outline" label="設定" onPress={onSettings} />
         </View>
       </View>
       {searching && (
@@ -60,7 +75,21 @@ export function CardWall({ posts, total, index, filter, onFilter, query, onQuery
           />
         </View>
       )}
-      <TagFilterBar index={index} selected={filter} onChange={onFilter} resultCount={posts.length} />
+      {filterBar ?? (
+        <TagScrollRow
+          index={index}
+          selected={filter}
+          onChange={onFilter}
+          multi
+          bleed={GUTTER}
+          resultCount={posts.length}
+          trailing={
+            onAllTags && (
+              <TagChip neutral label="所有標籤" a11yLabel="所有標籤" trailingIcon="chevron-forward" expanded={false} onPress={onAllTags} />
+            )
+          }
+        />
+      )}
     </View>
   );
 
@@ -100,19 +129,9 @@ export function CardWall({ posts, total, index, filter, onFilter, query, onQuery
         contentContainerStyle={{
           paddingTop: insets.top + space.sm,
           paddingHorizontal: GUTTER - GAP / 2,
-          paddingBottom: insets.bottom + 56 + space.xl * 2,
+          paddingBottom: insets.bottom + space.xxl,
         }}
       />
-      <PressScale
-        onPress={onAdd}
-        accessibilityRole="button"
-        accessibilityLabel="收藏連結"
-        containerStyle={[styles.fabPosition, { bottom: insets.bottom + space.lg }]}
-        style={[styles.fab, elevation.level1, { backgroundColor: t.primary }]}
-      >
-        <Ionicons name="add" size={22} color={t.onPrimary} />
-        <Text style={[font.label, { color: t.onPrimary }]}>收藏連結</Text>
-      </PressScale>
       {overlay}
     </View>
   );
@@ -123,19 +142,10 @@ const styles = StyleSheet.create({
   header: { paddingHorizontal: GAP / 2, paddingBottom: space.md, gap: space.md },
   kicker: { marginBottom: -space.sm },
   titleRow: { flexDirection: 'row', alignItems: 'center', marginRight: -space.sm },
+  titleRowBack: { marginLeft: -space.md },
+  title: { flex: 1, minWidth: 0 },
   masthead: { borderBottomWidth: 2, paddingBottom: space.xs },
   search: { flexDirection: 'row', alignItems: 'center', gap: space.sm, borderRadius: radius.sm, paddingHorizontal: space.md, minHeight: TOUCH },
   searchInput: { flex: 1, minWidth: 0, minHeight: TOUCH },
   cell: { paddingHorizontal: GAP / 2, paddingVertical: ROW_GAP / 2 },
-  fabPosition: { position: 'absolute', right: space.lg },
-  fab: {
-    height: 52,
-    borderRadius: 26,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: space.xs,
-    paddingLeft: space.md,
-    paddingRight: space.lg + 2,
-  },
 });

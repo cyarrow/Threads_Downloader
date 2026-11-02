@@ -110,7 +110,7 @@ function MediaPager({ media, width, placeholder, onStale }) {
                 hitSlop={{ top: 12, bottom: 12, left: 4, right: 4 }}
                 style={styles.dotTarget}
               >
-                <View style={[styles.dot, i === page && styles.dotOn, { backgroundColor: i === page ? t.foreground : t.border }]} />
+                <View style={[styles.dot, i === page && styles.dotOn, { backgroundColor: i === page ? t.foreground : t.outline }]} />
               </Pressable>
             ))}
           </View>

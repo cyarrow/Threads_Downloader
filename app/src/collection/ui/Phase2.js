@@ -277,7 +277,7 @@ export function Triage({ posts, index, onClose, onTag, onMoreTags }) {
                 }}
                 accessibilityRole="button"
                 accessibilityLabel={`放到 ${tagLabel(tag, index.byId)}，${reasonText(reasons)}`}
-                style={({ pressed }) => [styles.bigTag, { borderColor: t.border, opacity: pressed ? 0.75 : 1 }]}
+                style={({ pressed }) => [styles.bigTag, { borderColor: t.outline, opacity: pressed ? 0.75 : 1 }]}
               >
                 <View style={[styles.square, { backgroundColor: tagColors(tagHue(tag, index.byId), t.scheme, false).dot }]} />
                 <View style={styles.flex}>

@@ -84,7 +84,7 @@ export function TagChip({ label, hue, selected, onPress, variant = 'choice', neu
     <View
       style={[
         display ? styles.chipDisplay : styles.chip,
-        on ? { backgroundColor: t.foreground, borderColor: t.foreground } : { borderColor: t.border },
+        on ? { backgroundColor: t.foreground, borderColor: t.foreground } : { borderColor: display ? t.border : t.outline },
       ]}
     >
       {on && <Ionicons name="checkmark" size={icon.sm} color={text} />}
@@ -179,7 +179,7 @@ export function SecondaryButton({ title, iconName, onPress, danger }) {
       onPress={onPress}
       accessibilityRole="button"
       containerStyle={styles.flex}
-      style={[styles.secondary, { borderColor: t.border }]}
+      style={[styles.secondary, { borderColor: t.outline }]}
     >
       {iconName && <Ionicons name={iconName} size={icon.md} color={color} />}
       <Text style={[font.label, { color }]}>{title}</Text>

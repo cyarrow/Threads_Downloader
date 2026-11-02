@@ -17,9 +17,9 @@ def check(name, fg, bg, need=4.5):
     print(f"{'PASS' if ok else 'FAIL'} {r:5.2f} (≥{need})  {name}: {fg} on {bg}")
 
 # 雜誌 direction (2026-10-30). Keep in sync with app/src/collection/tokens.js.
-L = dict(bg='#F7F6F2', card='#FFFFFF', muted='#ECEAE4', fg='#1E1D1A', mutedFg='#5E5B53', border='#D9D6CE',
+L = dict(bg='#F7F6F2', card='#FFFFFF', muted='#ECEAE4', fg='#1E1D1A', mutedFg='#5E5B53', border='#D9D6CE', outline='#8E8A80',
          primary='#1E1D1A', onPrimary='#F7F6F2', accent='#2E4E8F', danger='#B3261E', success='#2F7D4A', field='#ECEAE4')
-D = dict(bg='#161615', card='#1F1F1D', muted='#2A2A27', fg='#EDEBE6', mutedFg='#A9A69E', border='#36352F',
+D = dict(bg='#161615', card='#1F1F1D', muted='#2A2A27', fg='#EDEBE6', mutedFg='#A9A69E', border='#36352F', outline='#6E6B63',
          primary='#EDEBE6', onPrimary='#161615', accent='#9DB7EA', danger='#F2978F', success='#7CC793', field='#2A2A27')
 for mode, t in (('LIGHT', L), ('DARK', D)):
     print(f'--- {mode}')
@@ -32,6 +32,7 @@ for mode, t in (('LIGHT', L), ('DARK', D)):
     check('primary as icon/indicator on card (non-text)', t['primary'], t['card'], 3)
     check('border vs bg (card edge, decorative)', t['border'], t['bg'], 1.2)
     check('primary (FAB) vs bg (non-text)', t['primary'], t['bg'], 3)
+    check('outline (control edge) vs bg', t['outline'], t['bg'], 3)
     check('selected chip (bg on fg)', t['bg'], t['fg'])
     check('accent (精選 kicker) on bg', t['accent'], t['bg'])
 

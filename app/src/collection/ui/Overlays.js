@@ -93,7 +93,7 @@ export function EmptyState({ filtered, onAction }) {
       </Text>
       <View style={[styles.emptyRule, { backgroundColor: t.foreground }]} />
       <Text style={[font.body, { color: t.mutedForeground }]}>
-        {filtered ? '換個關鍵字或標籤，或清除篩選看看全部。' : '在 Threads 貼文點「分享」選「Threads 下載」，\n或按右下角的 ＋ 貼上連結。'}
+        {filtered ? '換個關鍵字或標籤，或清除篩選看看全部。' : '在 Threads 貼文點「分享」選「Threads 下載」，或按右下角的「收藏連結」貼上網址。'}
       </Text>
       <View style={styles.emptyAction}>
         <PrimaryButton title={filtered ? '清除篩選' : '貼上連結收藏'} iconName={filtered ? 'close' : 'add'} onPress={onAction} />

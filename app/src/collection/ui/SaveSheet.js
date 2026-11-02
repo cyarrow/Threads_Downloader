@@ -38,7 +38,7 @@ function NewTagForm({ index, parentId: initialParent, onCreate, onCancel }) {
         placeholderTextColor={t.mutedForeground}
         accessibilityLabel="新標籤名稱"
         accessibilityLabelledBy="newTagLabel"
-        style={[font.body, styles.input, { color: t.foreground, backgroundColor: t.card, borderColor: error ? t.danger : t.border }]}
+        style={[font.body, styles.input, { color: t.foreground, backgroundColor: t.card, borderColor: error ? t.danger : t.outline }]}
       />
       {error && (
         <View style={styles.error} accessibilityLiveRegion="polite">
@@ -202,13 +202,13 @@ function Preview({ post, loading }) {
   const t = useCollectionTheme();
   const first = post && cardStill(post);
   return (
-    <View style={[styles.preview, { backgroundColor: t.muted }]} accessibilityLiveRegion="polite">
+    <View style={[styles.preview, { borderColor: t.border }]} accessibilityLiveRegion="polite">
       {loading ? (
-        <View style={[styles.thumb, { backgroundColor: t.field }]} />
+        <View style={[styles.thumb, { backgroundColor: t.muted }]} />
       ) : first ? (
         <Image source={first} style={styles.thumb} contentFit="cover" accessible={false} />
       ) : (
-        <View style={[styles.thumb, styles.thumbQuote, { backgroundColor: t.field }]}>
+        <View style={[styles.thumb, styles.thumbQuote, { backgroundColor: t.muted }]}>
           <Ionicons name="chatbubble-ellipses-outline" size={icon.lg} color={t.mutedForeground} />
         </View>
       )}
@@ -326,7 +326,7 @@ const styles = StyleSheet.create({
   reason: { flex: 1 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
   childRow: { borderLeftWidth: 2, paddingLeft: space.sm, marginLeft: space.xs, marginTop: space.xs },
-  preview: { flexDirection: 'row', gap: space.md, padding: space.md, borderRadius: radius.md, alignItems: 'center' },
+  preview: { flexDirection: 'row', gap: space.md, padding: space.md, borderRadius: radius.sm, borderWidth: StyleSheet.hairlineWidth * 2, alignItems: 'center' },
   thumb: { width: 56, height: 56, borderRadius: radius.sm },
   thumbQuote: { alignItems: 'center', justifyContent: 'center' },
   // Room for the author + two caption lines from the start, so the preview

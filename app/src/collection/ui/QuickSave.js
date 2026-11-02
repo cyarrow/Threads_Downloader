@@ -126,7 +126,7 @@ export function QuickPanel({ post, index, suggestions, recentIds, onPick, onMore
         </Text>
         <Text style={[font.meta, { color: t.mutedForeground }]}>點一下就完成</Text>
       </View>
-      <View style={[styles.list, { borderColor: t.border }]}>
+      <View style={[styles.list, { borderColor: t.outline }]}>
         {picks ? (
           picks.map((p, i) => (
             <TagRow

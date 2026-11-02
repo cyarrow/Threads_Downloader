@@ -15,6 +15,7 @@ const light = {
   foreground: '#1E1D1A',
   mutedForeground: '#5E5B53',
   border: '#D9D6CE',
+  outline: '#8E8A80', // edges of controls (chips, outlined buttons, inputs): ≥3:1 on page and card
   primary: '#1E1D1A',
   onPrimary: '#F7F6F2',
   accent: '#2E4E8F',
@@ -33,6 +34,7 @@ const dark = {
   foreground: '#EDEBE6',
   mutedForeground: '#A9A69E',
   border: '#36352F',
+  outline: '#6E6B63',
   primary: '#EDEBE6',
   onPrimary: '#161615',
   accent: '#9DB7EA',

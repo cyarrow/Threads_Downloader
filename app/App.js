@@ -3,14 +3,15 @@ import { BackHandler, Linking, Platform, StyleSheet, ToastAndroid, View } from '
 import { StatusBar } from 'expo-status-bar';
 import * as Clipboard from 'expo-clipboard';
 import Constants from 'expo-constants';
-import { useShareIntent } from 'expo-share-intent';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import { useDownloader } from './src/useDownloader';
+import { useShareIntent } from './src/shareIntent';
 import { summary } from './src/historyModel';
 import { parseThreadsUrl } from './src/threads';
 import { checkForUpdate } from './src/updates';
 import { CollectionProvider, useCollection } from './src/collection/store';
+import { mergeTags } from './src/collection/collectionModel';
 import { useBrandFont } from './src/collection/fonts';
 import { filterPosts, indexTags, tagLabel } from './src/collection/tagModel';
 import { useCollectionTheme } from './src/collection/tokens';
@@ -79,7 +80,7 @@ function Home({ notice }) {
   const [appliedQuery, setAppliedQuery] = useState('');
   const [detailId, setDetailId] = useState(null);
   const [menuPost, setMenuPost] = useState(null);
-  const [sheet, setSheet] = useState(null); // { mode: 'new' | 'edit', postId, fromShare }
+  const [sheet, setSheet] = useState(null); // { mode: 'new' | 'edit', postId, fromShare, quick }
   const [sheetTags, setSheetTags] = useState([]);
   const [addOpen, setAddOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -134,7 +135,8 @@ function Home({ notice }) {
     }
     const existing = res.status === 'exists' && c.posts.find((p) => p.id === res.id);
     setSheetTags(existing ? existing.tagIds : []);
-    setSheet({ mode: existing ? 'edit' : 'new', postId: res.id, fromShare });
+    // Shares open the compact 快速面板 unless the user turned it off in settings.
+    setSheet({ mode: existing ? 'edit' : 'new', postId: res.id, fromShare, quick: fromShare && !existing && c.quickSave });
     if (existing) setToast({ message: '這篇已經收藏過，可以直接改標籤' });
     return res.status;
   };
@@ -191,15 +193,18 @@ function Home({ notice }) {
   }, [notice]);
 
   // Applies the picked tags. Closing the sheet keeps them too, so nothing is lost.
-  const finishSheet = async ({ closed = false } = {}) => {
+  // `tags`: a quick-panel tap passes its one tag instead of the picker's selection.
+  const finishSheet = async ({ closed = false, tags = sheetTags } = {}) => {
     if (!sheet) return;
     const { postId, mode, fromShare } = sheet;
     const id = c.resolveId(postId);
     setSheet(null);
-    await c.setPostTags(id, sheetTags);
+    // A shared link that turned out to be an already-saved card: add to its tags, don't replace them.
+    const prior = mode === 'new' && id !== postId ? c.posts.find((p) => p.id === id)?.tagIds || [] : [];
+    await c.setPostTags(id, mergeTags(prior, tags));
     const willDownload = !closed && mode === 'new' && c.downloadToo;
     if (willDownload) requestDownload(id, fromShare);
-    const names = sheetTags.map((tid) => index.byId[tid]).filter(Boolean).map((tg) => tagLabel(tg, index.byId));
+    const names = tags.map((tid) => index.byId[tid]).filter(Boolean).map((tg) => tagLabel(tg, index.byId));
     const message =
       mode === 'edit'
         ? '標籤已更新'
@@ -397,6 +402,7 @@ function Home({ notice }) {
       <SaveSheet
         visible={!!sheet}
         mode={sheet?.mode}
+        quick={sheet?.quick}
         post={sheetPost}
         loading={sheetPost?.status === 'loading'}
         index={index}
@@ -409,6 +415,8 @@ function Home({ notice }) {
         onDownloadToo={c.setDownloadToo}
         onDone={() => finishSheet()}
         onClose={() => finishSheet({ closed: true })}
+        onQuickPick={(id) => finishSheet({ tags: [id] })}
+        onExpand={() => setSheet((s) => s && { ...s, quick: false })}
       />
       <AddLinkSheet
         visible={addOpen}
@@ -442,6 +450,8 @@ function Home({ notice }) {
         updateStatus={updateStatus}
         version={version}
         stats={`${c.posts.length} 篇 · ${tagCount} 個標籤`}
+        quickSave={c.quickSave}
+        onQuickSave={c.setQuickSave}
       />
       {tagsOpen && (
         <TagManager

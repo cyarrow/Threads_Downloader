@@ -39,6 +39,7 @@ export function CollectionProvider({ children, onNotice }) {
   const [tags, setTagsState] = useState([]);
   const [recent, setRecent] = useState([]);
   const [downloadToo, setDownloadTooState] = useState(false);
+  const [quickSave, setQuickSaveState] = useState(true); // 分享時用快速面板 (default on)
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
@@ -123,6 +124,7 @@ export function CollectionProvider({ children, onNotice }) {
       const [p, t] = await Promise.all([r.listPosts(), r.listTags()]);
       const rec = JSON.parse((await r.getMeta('recent')) || '[]');
       const dl = (await r.getMeta('download_too')) === '1';
+      const qs = (await r.getMeta('quick_save')) !== '0';
       if (!alive) return;
       postsRef.current = p;
       tagsRef.current = t;
@@ -130,6 +132,7 @@ export function CollectionProvider({ children, onNotice }) {
       setTagsState(t);
       setRecent(rec.filter((id) => t.some((tag) => tag.id === id)));
       setDownloadTooState(dl);
+      setQuickSaveState(qs);
       setReady(true);
       const resume = p.filter(needsRefresh);
       const loading = resume.filter((x) => x.status === 'loading');
@@ -210,6 +213,11 @@ export function CollectionProvider({ children, onNotice }) {
   const setDownloadToo = useCallback(async (value) => {
     setDownloadTooState(value);
     await repo.current?.setMeta('download_too', value ? '1' : '0');
+  }, []);
+
+  const setQuickSave = useCallback(async (value) => {
+    setQuickSaveState(value);
+    await repo.current?.setMeta('quick_save', value ? '1' : '0');
   }, []);
 
   const toggleFeatured = useCallback(
@@ -341,12 +349,14 @@ export function CollectionProvider({ children, onNotice }) {
       tags,
       recent,
       downloadToo,
+      quickSave,
       fetcherView: fetcher.webView,
       addFromUrl,
       resolveId,
       setPostTags,
       createTag,
       setDownloadToo,
+      setQuickSave,
       toggleFeatured,
       markDownloaded,
       retry,
@@ -362,7 +372,7 @@ export function CollectionProvider({ children, onNotice }) {
       importBackup,
     }),
     [ready, posts, tags, recent, downloadToo, fetcher.webView, addFromUrl, resolveId, setPostTags, createTag,
-      setDownloadToo, toggleFeatured, markDownloaded, retry, refresh, retryLoginFailures, remove, undoRemove, renameTag, recolorTag, deleteTag, mergeTag,
+      setDownloadToo, toggleFeatured, quickSave, setQuickSave, markDownloaded, retry, refresh, retryLoginFailures, remove, undoRemove, renameTag, recolorTag, deleteTag, mergeTag,
       exportBackup, importBackup],
   );
 

@@ -21,6 +21,7 @@ import { RediscoverCard, TagManager, Triage } from './src/collection/ui/Phase2';
 import { SecondaryButton } from './src/collection/ui/base';
 import { buzz } from './src/collection/ui/base';
 import { CardWall } from './src/collection/ui/CardWall';
+import { FetchHealth } from './src/collection/ui/FetchHealth';
 import { CardMenu, Toast } from './src/collection/ui/Overlays';
 import { PostDetail } from './src/collection/ui/PostDetail';
 import { SaveSheet } from './src/collection/ui/SaveSheet';
@@ -339,6 +340,7 @@ function Home({ notice }) {
         refreshing={refreshing}
         banner={
           <View style={styles.banners}>
+            <FetchHealth posts={c.posts} onRetryAll={c.retryAllFailed} onLogin={() => setLoginOpen(true)} />
             <UpdateBanner
               release={update}
               onDownload={() => Linking.openURL(update.apkUrl)}

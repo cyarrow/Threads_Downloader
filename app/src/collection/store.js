@@ -62,6 +62,19 @@ export function CollectionProvider({ children, onNotice }) {
     [setPosts],
   );
 
+  // --- Fetch health (see fetchHealth.js) ---
+  // Earlier failures that a later fetch showed were the reader breaking, not
+  // deleted posts or a logged-out page.
+  const relabelAsParse = useCallback(
+    async (urls = []) => {
+      for (const url of urls) {
+        const p = postsRef.current.find((x) => x.url === url && x.status === 'failed' && x.error !== 'parse');
+        if (p) await patch(p.id, { error: 'parse' });
+      }
+    },
+    [patch],
+  );
+
   const runFetch = useCallback(
     async (id) => {
       const post = postsRef.current.find((p) => p.id === id);
@@ -88,12 +101,13 @@ export function CollectionProvider({ children, onNotice }) {
         const cover = await saveCover(data.code, data.media[0]?.poster);
         if (cover) await patch(id, { cover });
       } catch (e) {
+        await relabelAsParse(e.reclassify);
         if (background) return; // keep an existing card as it is if a refresh fails
         await patch(id, { status: 'failed', error: e.kind || 'network' });
         noticeRef.current?.({ kind: e.kind === 'login' ? 'login' : 'failed', id });
       }
     },
-    [fetcher, patch, setPosts],
+    [fetcher, patch, setPosts, relabelAsParse],
   );
 
   // First launch: default tags, then old download history → cards. Then load
@@ -237,8 +251,20 @@ export function CollectionProvider({ children, onNotice }) {
     [patch, runFetch],
   );
 
+  // Called once the login sheet reports a working session.
+  const { noteLogin } = fetcher;
   const retryLoginFailures = useCallback(() => {
+    noteLogin();
     postsRef.current.filter((p) => p.status === 'failed' && p.error === 'login').forEach((p) => retry(p.id));
+  }, [retry, noteLogin]);
+
+  // Retries every failed card. Each retry goes into the fetcher's one-at-a-time
+  // queue in wall order, so this never opens a burst of pages at once.
+  // Returns how many were queued.
+  const retryAllFailed = useCallback(async () => {
+    const ids = postsRef.current.filter((p) => p.status === 'failed').map((p) => p.id);
+    for (const id of ids) await retry(id);
+    return ids.length;
   }, [retry]);
 
   const remove = useCallback(
@@ -352,6 +378,7 @@ export function CollectionProvider({ children, onNotice }) {
       retry,
       refresh,
       retryLoginFailures,
+      retryAllFailed,
       remove,
       undoRemove,
       renameTag,
@@ -362,7 +389,7 @@ export function CollectionProvider({ children, onNotice }) {
       importBackup,
     }),
     [ready, posts, tags, recent, downloadToo, fetcher.webView, addFromUrl, resolveId, setPostTags, createTag,
-      setDownloadToo, toggleFeatured, markDownloaded, retry, refresh, retryLoginFailures, remove, undoRemove, renameTag, recolorTag, deleteTag, mergeTag,
+      setDownloadToo, toggleFeatured, markDownloaded, retry, refresh, retryLoginFailures, retryAllFailed, remove, undoRemove, renameTag, recolorTag, deleteTag, mergeTag,
       exportBackup, importBackup],
   );
 

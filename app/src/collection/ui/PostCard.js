@@ -2,6 +2,7 @@ import { memo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
+import { failureLabel } from '../fetchHealth';
 import { cardStill } from '../media';
 import { tagHue, tagLabel } from '../tagModel';
 import { font, icon, radius, space, tagColors, tagTint, useCollectionTheme } from '../tokens';
@@ -100,7 +101,7 @@ function PostCardImpl({ post, index, onPress, onLongPress, onRetry, wide, maxMed
     return (
       <View style={[styles.failed, { borderColor: t.border }]}>
         <Ionicons name="alert-circle" size={icon.lg} color={t.danger} />
-        <Text style={[font.label, { color: t.foreground }]}>{post.error === 'login' ? '需要登入 Threads' : '讀取失敗'}</Text>
+        <Text style={[font.label, { color: t.foreground }]}>{failureLabel(post.error)}</Text>
         <Text style={[font.meta, { color: t.mutedForeground, textAlign: 'center' }]} numberOfLines={2}>
           {post.author ? `@${post.author}` : post.url.replace(/^https:\/\/www\./, '')}
         </Text>

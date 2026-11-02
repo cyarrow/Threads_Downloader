@@ -5,8 +5,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { failureLabel } from '../fetchHealth';
 import { cardStill } from '../media';
 import { tagHue, tagLabel } from '../tagModel';
-import { font, icon, radius, space, tagColors, tagTint, useCollectionTheme } from '../tokens';
+import { icon, space, useCollectionTheme } from '../tokens';
 import { PressScale } from './base';
+import { PhotoBack, Print, TagKicker } from './theme';
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
@@ -14,69 +15,68 @@ function Skeleton() {
   const t = useCollectionTheme();
   return (
     <View style={styles.stack}>
-      <View style={[styles.skeletonMedia, { backgroundColor: t.muted }]} />
+      <View style={[styles.skeletonMedia, { backgroundColor: t.muted, borderRadius: t.radius.xs }]} />
       <View style={[styles.skeletonLine, { backgroundColor: t.muted, width: '40%' }]} />
       <View style={[styles.skeletonLine, { backgroundColor: t.muted, width: '90%' }]} />
       <View style={[styles.skeletonLine, { backgroundColor: t.muted, width: '60%' }]} />
-      <Text style={[font.meta, { color: t.mutedForeground }]}>讀取中…</Text>
+      <Text style={[t.font.meta, { color: t.mutedForeground }]}>讀取中…</Text>
     </View>
   );
 }
 
-// Section label above the text, like a magazine column heading: the tag's colour
-// as a small square plus its name. Featured cards also say 精選 and show the full
-// 大標籤 › 小標籤 path.
+// Section label above the text, like a magazine column heading: the tag's marker
+// plus its name. Featured cards also say 精選 and show the full 大標籤 › 小標籤 path.
 function Kicker({ post, tags, hue, index }) {
-  const t = useCollectionTheme();
-  const c = tagColors(hue, t.scheme, false);
   const name = tags[0] ? (post.featured ? tagLabel(tags[0], index.byId) : tags[0].name) : '未分類';
-  return (
-    <View style={styles.row}>
-      {post.featured && <Text style={[font.kicker, { color: t.accent }]}>精選</Text>}
-      <View style={[styles.square, { backgroundColor: c.dot }]} />
-      <Text style={[font.kicker, styles.flex, { color: tags[0] ? c.text : t.mutedForeground }]} numberOfLines={1}>
-        {name}
-        {tags.length > 1 ? ` +${tags.length - 1}` : ''}
-      </Text>
-    </View>
-  );
+  const more = tags.length > 1 ? ` +${tags.length - 1}` : '';
+  return <TagKicker hue={hue} featured={post.featured} untagged={!tags[0]} label={name + more} />;
 }
 
 // Sans meta line closing the card: what the old photo badges said, as words.
+// 底片 prints say ▶ 影片 / N 張 on the photo and the author on a text card's back,
+// so there the line only carries status (已刪除, 已下載), and only when there is one.
 function Meta({ post, kind }) {
   const t = useCollectionTheme();
   const muted = { color: t.mutedForeground };
+  const film = t.printFrame;
+  if (film && post.status !== 'sourceDeleted' && !post.downloaded) return null;
   return (
     <View style={styles.row}>
-      <Text style={[font.caption, styles.flex, muted]} numberOfLines={1}>
-        @{post.author}
-      </Text>
-      {kind && (
+      {film ? (
+        <View style={styles.flex} />
+      ) : (
+        <Text style={[t.font.caption, styles.flex, muted]} numberOfLines={1}>
+          @{post.author}
+        </Text>
+      )}
+      {kind && !film && (
         <View style={styles.item}>
           {post.media[0]?.type === 'video' && <Ionicons name="play" size={11} color={t.mutedForeground} />}
-          <Text style={[font.caption, muted]}>{kind}</Text>
+          <Text style={[t.font.caption, muted]}>{kind}</Text>
         </View>
       )}
       {post.status === 'sourceDeleted' && (
         <View style={styles.item}>
           <Ionicons name="cloud-offline-outline" size={13} color={t.mutedForeground} />
-          <Text style={[font.caption, muted]}>已刪除</Text>
+          <Text style={[t.font.caption, muted]}>已刪除</Text>
         </View>
       )}
       {post.downloaded && (
         <View style={styles.item}>
           <Ionicons name="arrow-down-circle-outline" size={13} color={t.mutedForeground} />
-          <Text style={[font.caption, muted]}>已下載</Text>
+          <Text style={[t.font.caption, muted]}>已下載</Text>
         </View>
       )}
     </View>
   );
 }
 
-// One saved post on the wall, in the 雜誌 style (design-system/threads-collection):
-// no card box and nothing printed over the photo — image, kicker, up to three
-// lines of the post in WenKai, a meta line, then a hairline rule. Text-only posts
-// become a tag-tinted page that opens with a large 「. Featured posts span the row.
+// One saved post on the wall (design-system/threads-collection). 雜誌: no card box
+// and nothing printed over the photo — image, kicker, up to three lines of the
+// post in WenKai, a meta line, then a hairline rule; text-only posts become a
+// tag-tinted page that opens with a large 「. 底片: the photo is a print (paper
+// edge, date imprint, ▶ 影片 / N 張), no rule, two lines of text; text-only posts
+// are the back of a photo (PhotoBack). Featured posts span the row.
 // `wide`: the wall is in its 3-column (tablet / landscape) layout, where a
 // full-row featured card needs a flatter image to stay within the screen.
 // `maxMediaHeight` keeps any one image from filling a short (landscape) screen.
@@ -87,7 +87,7 @@ function PostCardImpl({ post, index, onPress, onLongPress, onRetry, wide, maxMed
   const first = post.media[0];
   const still = cardStill(post);
   const visual = !!(first || still);
-  const rule = { borderBottomColor: t.border };
+  const rule = t.printFrame ? styles.unruled : { borderBottomColor: t.border };
 
   if (post.status === 'loading') {
     return (
@@ -99,14 +99,14 @@ function PostCardImpl({ post, index, onPress, onLongPress, onRetry, wide, maxMed
 
   if (post.status === 'failed') {
     return (
-      <View style={[styles.failed, { borderColor: t.border }]}>
+      <View style={[styles.failed, { borderColor: t.border, borderRadius: t.radius.xs }]}>
         <Ionicons name="alert-circle" size={icon.lg} color={t.danger} />
-        <Text style={[font.label, { color: t.foreground }]}>{failureLabel(post.error)}</Text>
-        <Text style={[font.meta, { color: t.mutedForeground, textAlign: 'center' }]} numberOfLines={2}>
+        <Text style={[t.font.label, { color: t.foreground }]}>{failureLabel(post.error)}</Text>
+        <Text style={[t.font.meta, { color: t.mutedForeground, textAlign: 'center' }]} numberOfLines={2}>
           {post.author ? `@${post.author}` : post.url.replace(/^https:\/\/www\./, '')}
         </Text>
         <Pressable onPress={onRetry} accessibilityRole="button" style={styles.retry}>
-          <Text style={[font.label, { color: t.accent }]}>重試</Text>
+          <Text style={[t.font.label, { color: t.accent }]}>重試</Text>
         </Pressable>
       </View>
     );
@@ -131,6 +131,7 @@ function PostCardImpl({ post, index, onPress, onLongPress, onRetry, wide, maxMed
     post.downloaded && '已下載',
   ].filter(Boolean).join('，');
   const metaKind = first ? (first.type === 'video' ? '影片' : post.media.length > 1 ? `${post.media.length} 張` : null) : null;
+  const printKind = first ? (first.type === 'video' ? 'video' : post.media.length > 1 ? 'multi' : null) : null;
 
   return (
     <PressScale
@@ -143,29 +144,32 @@ function PostCardImpl({ post, index, onPress, onLongPress, onRetry, wide, maxMed
       style={[styles.wrap, rule]}
     >
       {visual ? (
-        // recyclingKey: the list reuses card views while scrolling; without it a
-        // recycled card briefly shows the previous post's image.
-        <Image
-          source={still}
-          recyclingKey={post.id}
-          style={[styles.media, { aspectRatio: 1 / ratio, maxHeight: maxMediaHeight, backgroundColor: t.muted }]}
-          contentFit="cover"
-          cachePolicy="memory-disk"
-          accessible={false}
-        />
+        <Print savedAt={post.savedAt} kind={printKind} count={post.media.length} style={styles.mediaGap}>
+          {/* recyclingKey: the list reuses card views while scrolling; without it a
+              recycled card briefly shows the previous post's image. */}
+          <Image
+            source={still}
+            recyclingKey={post.id}
+            style={[styles.media, { aspectRatio: 1 / ratio, maxHeight: maxMediaHeight, backgroundColor: t.muted }]}
+            contentFit="cover"
+            cachePolicy="memory-disk"
+            accessible={false}
+          />
+        </Print>
       ) : (
-        <View style={[styles.page, { backgroundColor: tagTint(hue, t.scheme, t.card) }]}>
-          <Text style={[font.quote, styles.mark, { color: tagColors(hue, t.scheme, false).dot }]} importantForAccessibility="no">
-            「
-          </Text>
-          <Text style={[post.featured ? font.cardFeatured : font.quote, { color: t.foreground }]} numberOfLines={8}>
-            {post.caption}
-          </Text>
-        </View>
+        <PhotoBack
+          hue={hue}
+          text={post.caption}
+          savedAt={post.savedAt}
+          author={post.author}
+          textStyle={post.featured ? t.font.cardFeatured : t.font.quote}
+          numberOfLines={8}
+          style={styles.mediaGap}
+        />
       )}
       <Kicker post={post} tags={tags} hue={hue} index={index} />
       {visual && !!post.caption && (
-        <Text style={[post.featured ? font.cardFeatured : font.card, { color: t.foreground }]} numberOfLines={3}>
+        <Text style={[post.featured ? t.font.cardFeatured : t.font.card, { color: t.foreground }]} numberOfLines={t.printFrame ? 2 : 3}>
           {post.caption}
         </Text>
       )}
@@ -178,22 +182,20 @@ export const PostCard = memo(PostCardImpl);
 
 const styles = StyleSheet.create({
   wrap: { gap: space.sm, paddingBottom: 14, borderBottomWidth: StyleSheet.hairlineWidth * 2 },
+  unruled: { borderBottomWidth: 0, paddingBottom: 0 },
   stack: { gap: space.sm },
-  media: { width: '100%', borderRadius: radius.xs, marginBottom: 2 },
-  page: { borderRadius: radius.xs, paddingHorizontal: space.md, paddingBottom: space.md, marginBottom: 2 },
-  mark: { fontSize: 40, lineHeight: 48, marginLeft: -14, marginBottom: -10 },
+  media: { width: '100%' },
+  mediaGap: { marginBottom: 2 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   item: { flexDirection: 'row', alignItems: 'center', gap: 2 },
-  square: { width: 8, height: 8, borderRadius: 1 },
   flex: { flex: 1 },
-  skeletonMedia: { width: '100%', aspectRatio: 1, borderRadius: radius.xs },
+  skeletonMedia: { width: '100%', aspectRatio: 1 },
   skeletonLine: { height: 12, borderRadius: 2 },
   failed: {
     alignItems: 'center',
     padding: space.lg,
     gap: space.xs,
     borderWidth: StyleSheet.hairlineWidth * 2,
-    borderRadius: radius.xs,
   },
   retry: { minHeight: 48, justifyContent: 'center', paddingHorizontal: space.lg },
 });

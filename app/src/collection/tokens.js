@@ -1,52 +1,16 @@
 // Design tokens for the collection feature. Source of truth:
-// design-system/threads-collection/MASTER.md (verify colors with contrast_check.py).
+// design-system/threads-collection/MASTER.md (§2–4 雜誌, §16 themes); colours live in
+// themes.js and are verified with contrast_check_themes.py.
+import { createContext, createElement, useContext, useMemo } from 'react';
 import { Platform, useColorScheme } from 'react-native';
 import { TAG_COLORS } from './palette.js';
+import { DEFAULT_THEME, THEMES, THEME_IDS, mixHex, normalizeThemeId, tagStyle } from './themes.js';
 
 export { TAG_COLORS };
 
-// 雜誌 direction: paper-white page, ink text, one blue accent for links. Primary
-// is ink, so filled buttons and the FAB read as black type on paper.
-const light = {
-  background: '#F7F6F2',
-  card: '#FFFFFF',
-  muted: '#ECEAE4',
-  field: '#ECEAE4',
-  foreground: '#1E1D1A',
-  mutedForeground: '#5E5B53',
-  border: '#D9D6CE',
-  outline: '#8E8A80', // edges of controls (chips, outlined buttons, inputs): ≥3:1 on page and card
-  primary: '#1E1D1A',
-  onPrimary: '#F7F6F2',
-  accent: '#2E4E8F',
-  danger: '#B3261E',
-  success: '#2F7D4A',
-  scrim: 'rgba(0,0,0,0.45)',
-  badge: 'rgba(30,29,26,0.72)',
-  onBadge: '#FFFFFF',
-};
-
-const dark = {
-  background: '#161615',
-  card: '#1F1F1D',
-  muted: '#2A2A27',
-  field: '#2A2A27',
-  foreground: '#EDEBE6',
-  mutedForeground: '#A9A69E',
-  border: '#36352F',
-  outline: '#6E6B63',
-  primary: '#EDEBE6',
-  onPrimary: '#161615',
-  accent: '#9DB7EA',
-  danger: '#F2978F',
-  success: '#7CC793',
-  scrim: 'rgba(0,0,0,0.6)',
-  badge: 'rgba(0,0,0,0.7)',
-  onBadge: '#FFFFFF',
-};
-
-// Chip colors for a tag hue in the current scheme; selected chips invert to a
-// solid fill and must also show a checkmark (color is never the only signal).
+// Chip colors for a tag hue in the 雜誌 theme; selected chips invert to a solid
+// fill and must also show a checkmark (color is never the only signal).
+// Theme-aware screens use `t.tag(hue)` from useCollectionTheme() instead.
 export function tagColors(hue, scheme, selected) {
   const c = TAG_COLORS[hue] || TAG_COLORS.slate;
   if (scheme === 'dark') {
@@ -59,20 +23,11 @@ export function tagColors(hue, scheme, selected) {
     : { bg: c.lightBg, text: c.lightText, dot: c.dot };
 }
 
-// Tag-tinted paper for text-only cards: the light tint, or the hue at 20% over the
-// dark card (same pair contrast_check.py verifies for chip text).
+// Tag-tinted paper for 雜誌 text-only cards: the light tint, or the hue at 20% over
+// the dark card. Theme-aware screens use `t.tag(hue).paper` with `.onPaper`.
 export function tagTint(hue, scheme, card) {
   const c = TAG_COLORS[hue] || TAG_COLORS.slate;
-  if (scheme !== 'dark') return c.lightBg;
-  const a = parseInt(c.dot.slice(1), 16);
-  const b = parseInt(card.slice(1), 16);
-  const ch = (shift) => Math.round(((a >> shift) & 255) * 0.2 + ((b >> shift) & 255) * 0.8);
-  return `#${((1 << 24) | (ch(16) << 16) | (ch(8) << 8) | ch(0)).toString(16).slice(1)}`;
-}
-
-export function useCollectionTheme() {
-  const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
-  return { ...(scheme === 'dark' ? dark : light), scheme };
+  return scheme !== 'dark' ? c.lightBg : mixHex(c.dot, card, 0.2);
 }
 
 // LXGW WenKai TC (subset, see app/assets/fonts): a regular-script face with a
@@ -80,7 +35,18 @@ export function useCollectionTheme() {
 // functional text (labels, chips, meta, inputs) stays in the system sans.
 // Android registers it as an XML family "WenKai" with 400 and 700 (app.json).
 export const BRAND_FONT = Platform.select({ ios: 'LXGW WenKai TC', default: 'WenKai' });
+// WenKai Bold: 底片's titles. Native picks the 700 face of the family; the web
+// stand-in registers the bold file as its own family (fonts.web.js), and asking
+// for weight 700 there would embolden it a second time.
+export const BRAND_FONT_BOLD_WEB = 'WenKaiBold';
+const BRAND_BOLD = Platform.select({
+  web: { fontFamily: BRAND_FONT_BOLD_WEB },
+  default: { fontFamily: BRAND_FONT, fontWeight: '700' },
+});
+// 底片's date imprint: digits-only subset of IBM Plex Mono Medium, renamed (OFL RFN).
+export const IMPRINT_FONT = 'ImprintMono';
 
+// 雜誌 type scale (module default; screens use t.font for the current theme).
 export const font = {
   display: { fontSize: 32, lineHeight: 40, letterSpacing: 1, fontFamily: BRAND_FONT },
   title: { fontSize: 21, lineHeight: 29, fontFamily: BRAND_FONT },
@@ -94,11 +60,26 @@ export const font = {
   meta: { fontSize: 13, lineHeight: 18 },
   caption: { fontSize: 12, lineHeight: 16, fontWeight: '500' },
   kicker: { fontSize: 12, lineHeight: 16, fontWeight: '600', letterSpacing: 1.5 },
+  imprint: { fontSize: 12, lineHeight: 14, letterSpacing: 0.5, fontFamily: IMPRINT_FONT },
 };
 
+// 底片 type: WenKai Bold stands in for a serif in titles (Android's `serif` only
+// reaches Noto Serif CJK on some builds, and only at 400), posts stay WenKai
+// Regular, and the ruled text cards use a 26pt line to sit on their rules.
+const filmFont = {
+  ...font,
+  display: { fontSize: 30, lineHeight: 38, letterSpacing: 1, ...BRAND_BOLD },
+  title: { fontSize: 20, lineHeight: 28, ...BRAND_BOLD },
+  card: { fontSize: 14, lineHeight: 22, fontFamily: BRAND_FONT },
+  quote: { fontSize: 16, lineHeight: 26, fontFamily: BRAND_FONT },
+  kicker: { fontSize: 12, lineHeight: 16, fontWeight: '500', letterSpacing: 1 },
+};
+
+const FONTS = { editorial: font, film: filmFont };
+
 export const space = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32, xxxl: 48 };
-// Editorial corners: nearly square boxes; only the FAB and switches stay round.
-export const radius = { xs: 3, sm: 4, md: 8, lg: 12, sheet: 16, full: 999 };
+// 雜誌 corners (module default; screens use t.radius for the current theme).
+export const radius = THEMES.editorial.knobs.radius;
 export const icon = { sm: 16, md: 20, lg: 24 };
 
 // Android 48dp / iOS 44pt minimum touch target.
@@ -114,3 +95,49 @@ export const elevation = {
     default: { shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 16, shadowOffset: { width: 0, height: 4 } },
   }),
 };
+
+// Everything a screen needs for one theme + scheme, built once so the object is
+// stable between renders (safe in memo deps).
+function resolve(id, scheme) {
+  const theme = THEMES[id];
+  const { radius: r, ...knobs } = theme.knobs;
+  const tags = {};
+  for (const hue of Object.keys(TAG_COLORS)) tags[hue] = tagStyle(id, scheme, hue);
+  return {
+    ...theme.colors[scheme],
+    scheme,
+    theme: id,
+    themeName: theme.name,
+    ...knobs,
+    font: FONTS[id] || font,
+    radius: r,
+    tag: (hue) => tags[hue] || tags.slate,
+  };
+}
+const RESOLVED = Object.fromEntries(THEME_IDS.map((id) => [id, { light: resolve(id, 'light'), dark: resolve(id, 'dark') }]));
+
+const ThemeContext = createContext({ id: DEFAULT_THEME, setTheme: null });
+
+// Provided by CollectionProvider (store.js), which persists the choice. Screens
+// outside it get the default theme.
+export function ThemeProvider({ id, onChange, children }) {
+  const value = useMemo(() => ({ id: normalizeThemeId(id), setTheme: onChange || null }), [id, onChange]);
+  return createElement(ThemeContext.Provider, { value }, children);
+}
+
+// The selected theme id, a setter (null outside the provider), and the choices.
+export const THEME_CHOICES = THEME_IDS.map((id) => ({ id, name: THEMES[id].name }));
+export function useThemeChoice() {
+  const { id, setTheme } = useContext(ThemeContext);
+  return { id, setTheme, choices: THEME_CHOICES };
+}
+
+// Colour tokens + `scheme` (as before), plus `theme` ('editorial' | 'film'),
+// `themeName`, `font`, `radius`, the layout knobs (`printFrame`, `rule`, `marker`,
+// `textCard`, `kickerTone`) and `tag(hue)` → { mark, text, paper, onPaper,
+// onPaperMuted, paperRule }. See MASTER.md §16 for how screens use them.
+export function useCollectionTheme() {
+  const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
+  const { id } = useContext(ThemeContext);
+  return RESOLVED[id][scheme];
+}

@@ -8,14 +8,17 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { imageSource } from '../media';
 import { playbackFocus, playingAfterPageChange } from '../playback';
 import { tagHue, tagLabel } from '../tagModel';
-import { TOUCH, font, icon, radius, space, tagColors, tagTint, useCollectionTheme } from '../tokens';
+import { TOUCH, icon, space, useCollectionTheme } from '../tokens';
 import { IconButton, PrimaryButton, SecondaryButton, TagChip } from './base';
+import { PRINT_INSET, PhotoBack, Print, TagKicker } from './theme';
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
 // Same screen margin as the card wall, so the article column lines up with it.
 const GUTTER = 20;
 const RULE = StyleSheet.hairlineWidth * 2;
+// 底片: media sit as a print with this much page showing on each side.
+const PRINT_MARGIN = 14;
 
 function formatDate(ts) {
   const d = new Date(ts);
@@ -81,7 +84,10 @@ function MediaItem({ item, index, width, height, placeholder, playing, onPlay, o
   );
 }
 
-function MediaPager({ media, width, placeholder, onStale }) {
+// `width` is the width of one page (the photo itself); in 底片 the pager sits in a
+// print frame (paper edge + savedAt date imprint, hidden while a video plays so
+// it never covers the native controls).
+function MediaPager({ media, width, placeholder, onStale, savedAt }) {
   const t = useCollectionTheme();
   const [page, setPage] = useState(0);
   // The page whose video is playing (-1 = none). Held here, not per item, so only
@@ -98,8 +104,7 @@ function MediaPager({ media, width, placeholder, onStale }) {
     list.current?.scrollToIndex({ index: i, animated: true });
     settle(i);
   };
-  return (
-    <View>
+  const pager = (
       <FlatList
         ref={list}
         data={media}
@@ -123,6 +128,16 @@ function MediaPager({ media, width, placeholder, onStale }) {
           />
         )}
       />
+  );
+  return (
+    <View>
+      {t.printFrame ? (
+        <Print savedAt={savedAt} imprint={playingIndex !== page} style={[styles.print, { width: width + PRINT_INSET }]}>
+          {pager}
+        </Print>
+      ) : (
+        pager
+      )}
       {media.length > 1 && (
         // Page marks and counter sit under the photo (nothing printed over it).
         // The current mark is longer, not only darker, and the counter says it in numbers.
@@ -142,7 +157,7 @@ function MediaPager({ media, width, placeholder, onStale }) {
               </Pressable>
             ))}
           </View>
-          <Text style={[font.caption, styles.counter, { color: t.mutedForeground }]}>
+          <Text style={[t.font.caption, styles.counter, { color: t.mutedForeground }]}>
             {page + 1} / {media.length}
           </Text>
         </View>
@@ -173,15 +188,16 @@ export function PostDetail({ post, index, onBack, onAction, onStale }) {
   const updating = !post.media.length && post.status === 'ready' && !post.fetchedAt;
   const visual = post.media.length > 0 || !!cover;
   const hue = tags[0] ? tagHue(tags[0], index.byId) : 'slate';
-  const hueColors = tagColors(hue, t.scheme, false);
   const rule = { borderTopColor: t.border };
+  // 底片 insets the photo as a print; 雜誌 runs it edge to edge.
+  const mediaWidth = t.printFrame ? width - PRINT_MARGIN * 2 - PRINT_INSET : width;
 
   return (
     <View style={[styles.screen, { backgroundColor: t.background, paddingTop: insets.top }]}>
       <View style={[styles.topBar, { borderBottomColor: t.border }]}>
         <IconButton name="arrow-back" label="返回" onPress={onBack} />
         {/* Running head: the author, quietly, like a magazine page header. */}
-        <Text style={[font.kicker, styles.topTitle, { color: t.mutedForeground }]} numberOfLines={1} accessibilityRole="header">
+        <Text style={[t.font.kicker, styles.topTitle, { color: t.mutedForeground }]} numberOfLines={1} accessibilityRole="header">
           {post.author ? `@${post.author}` : 'Threads 貼文'}
         </Text>
         <IconButton name="ellipsis-vertical" label="更多：在 Threads 開啟、刪除" onPress={act('more')} />
@@ -189,65 +205,58 @@ export function PostDetail({ post, index, onBack, onAction, onStale }) {
 
       <ScrollView contentContainerStyle={{ paddingBottom: space.xxl }}>
         {post.media.length > 0 ? (
-          <MediaPager media={post.media} width={width} placeholder={cover} onStale={reportStale} />
+          <MediaPager media={post.media} width={mediaWidth} placeholder={cover} onStale={reportStale} savedAt={post.savedAt} />
         ) : (
-          cover && (
+          cover &&
+          (t.printFrame ? (
+            <Print savedAt={post.savedAt} style={[styles.print, { width: mediaWidth + PRINT_INSET }]}>
+              <Image source={cover} style={{ width: mediaWidth, height: mediaWidth }} contentFit="contain" accessibilityLabel="封面" />
+            </Print>
+          ) : (
             <Image source={cover} style={{ width, height: width }} contentFit="contain" accessibilityLabel="封面" />
-          )
+          ))
         )}
         <View style={styles.body}>
           {updating && (
             <View style={[styles.notice, { borderColor: t.border }]} accessibilityLiveRegion="polite">
               <Ionicons name="refresh" size={icon.md} color={t.mutedForeground} />
-              <Text style={[font.meta, { color: t.mutedForeground, flex: 1 }]}>這是舊的下載紀錄，正在補上完整內容…</Text>
+              <Text style={[t.font.meta, { color: t.mutedForeground, flex: 1 }]}>這是舊的下載紀錄，正在補上完整內容…</Text>
             </View>
           )}
           {deleted && (
             <View style={[styles.notice, { borderColor: t.border }]}>
               <Ionicons name="cloud-offline-outline" size={icon.md} color={t.mutedForeground} />
-              <Text style={[font.meta, { color: t.mutedForeground, flex: 1 }]}>原貼文已刪除，只剩收藏時存下的內容，無法下載原檔。</Text>
+              <Text style={[t.font.meta, { color: t.mutedForeground, flex: 1 }]}>原貼文已刪除，只剩收藏時存下的內容，無法下載原檔。</Text>
             </View>
           )}
 
-          <View style={styles.kicker}>
-            {post.featured && <Text style={[font.kicker, { color: t.accent }]}>精選</Text>}
-            <View style={[styles.square, { backgroundColor: hueColors.dot }]} />
-            <Text style={[font.kicker, styles.flex, { color: tags[0] ? hueColors.text : t.mutedForeground }]} numberOfLines={1}>
-              {tags[0] ? tagLabel(tags[0], index.byId) : '未分類'}
-            </Text>
-          </View>
+          <TagKicker hue={hue} featured={post.featured} untagged={!tags[0]} label={tags[0] ? tagLabel(tags[0], index.byId) : '未分類'} />
 
           {!!post.caption &&
             (visual ? (
-              <Text style={[font.content, { color: t.foreground }]} selectable>
+              <Text style={[t.font.content, { color: t.foreground }]} selectable>
                 {post.caption}
               </Text>
             ) : (
-              // Text-only post: the same tag-tinted page as its card on the wall.
-              <View style={[styles.page, { backgroundColor: tagTint(hue, t.scheme, t.card) }]}>
-                <Text style={[font.quote, styles.mark, { color: hueColors.dot }]} importantForAccessibility="no" accessibilityElementsHidden>
-                  「
-                </Text>
-                <Text style={[font.quote, { color: t.foreground }]} selectable>
-                  {post.caption}
-                </Text>
-              </View>
+              // Text-only post: the same paper as its card on the wall (tag-tinted
+              // page in 雜誌, ruled photo back in 底片).
+              <PhotoBack hue={hue} text={post.caption} savedAt={post.savedAt} large selectable />
             ))}
 
           <View style={[styles.byline, rule]}>
             {!!post.author && (
-              <Text style={[font.label, { color: t.foreground }]} numberOfLines={1}>
+              <Text style={[t.font.label, { color: t.foreground }]} numberOfLines={1}>
                 <Text style={{ color: t.mutedForeground }}>文 ／ </Text>@{post.author}
               </Text>
             )}
-            <Text style={[font.caption, styles.dateline, { color: t.mutedForeground }]}>收藏於 {formatDate(post.savedAt)}</Text>
+            <Text style={[t.font.caption, styles.dateline, { color: t.mutedForeground }]}>收藏於 {formatDate(post.savedAt)}</Text>
           </View>
 
           <View style={[styles.section, rule]}>
             <View style={styles.sectionHeader}>
-              <Text style={[font.kicker, { color: t.mutedForeground }]}>標籤</Text>
+              <Text style={[t.font.kicker, { color: t.mutedForeground }]}>標籤</Text>
               <Pressable onPress={act('tags')} accessibilityRole="button" style={styles.editTags}>
-                <Text style={[font.label, { color: t.accent }]}>編輯標籤</Text>
+                <Text style={[t.font.label, { color: t.accent }]}>編輯標籤</Text>
                 <Ionicons name="chevron-forward" size={icon.sm} color={t.accent} />
               </Pressable>
             </View>
@@ -286,10 +295,7 @@ const styles = StyleSheet.create({
   body: { paddingHorizontal: GUTTER, paddingTop: space.lg, gap: space.md },
   // Editor's-note band: hairlines above and below instead of a filled box.
   notice: { flexDirection: 'row', gap: space.sm, paddingVertical: space.md, borderTopWidth: RULE, borderBottomWidth: RULE, alignItems: 'center' },
-  kicker: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  square: { width: 8, height: 8, borderRadius: 1 },
-  page: { borderRadius: radius.xs, paddingHorizontal: space.lg, paddingBottom: space.lg },
-  mark: { fontSize: 44, lineHeight: 52, marginLeft: -16, marginBottom: -12 },
+  print: { marginHorizontal: PRINT_MARGIN, marginTop: space.md, alignSelf: 'flex-start' },
   byline: { borderTopWidth: RULE, paddingTop: space.md, marginTop: space.xs, gap: 2 },
   dateline: { letterSpacing: 1 },
   section: { borderTopWidth: RULE, marginTop: space.sm },

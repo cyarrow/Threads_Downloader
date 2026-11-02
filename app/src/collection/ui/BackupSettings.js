@@ -3,7 +3,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import { Ionicons } from '@expo/vector-icons';
 import { formatBackupTime } from '../backupSchedule';
 import { useCollection } from '../store';
-import { TOUCH, font, icon, space, useCollectionTheme } from '../tokens';
+import { TOUCH, icon, space, useCollectionTheme } from '../tokens';
 
 const FAILED = {
   folder: '自動備份失敗：找不到資料夾，請重新選擇',
@@ -16,6 +16,7 @@ const RESULT = {
 };
 
 function TextButton({ title, label, onPress, color, disabled }) {
+  const t = useCollectionTheme();
   return (
     <Pressable
       onPress={onPress}
@@ -25,7 +26,7 @@ function TextButton({ title, label, onPress, color, disabled }) {
       accessibilityState={{ disabled: !!disabled }}
       style={({ pressed }) => [styles.textButton, { opacity: disabled ? 0.45 : pressed ? 0.6 : 1 }]}
     >
-      <Text style={[font.label, { color }]}>{title}</Text>
+      <Text style={[t.font.label, { color }]}>{title}</Text>
     </Pressable>
   );
 }
@@ -57,33 +58,33 @@ export function BackupSettings() {
     <View style={[styles.block, { borderColor: t.border }]}>
       <View style={styles.head}>
         <Ionicons name={on ? 'cloud-done-outline' : 'cloud-upload-outline'} size={icon.lg} color={t.foreground} />
-        <Text style={[font.body, { color: t.foreground, flex: 1 }]} accessibilityRole="header">
+        <Text style={[t.font.body, { color: t.foreground, flex: 1 }]} accessibilityRole="header">
           自動備份
         </Text>
         {b.busy ? (
           <ActivityIndicator size="small" color={t.mutedForeground} accessibilityLabel="備份中" />
         ) : (
-          <Text style={[font.meta, { color: t.mutedForeground }]}>{on ? '每天' : '關閉'}</Text>
+          <Text style={[t.font.meta, { color: t.mutedForeground }]}>{on ? '每天' : '關閉'}</Text>
         )}
       </View>
       <View style={styles.body} accessibilityLiveRegion="polite">
         {failure ? (
           <View style={styles.line}>
             <Ionicons name="alert-circle" size={icon.sm} color={t.danger} style={styles.lineIcon} />
-            <Text style={[font.meta, { color: t.danger, flex: 1 }]}>{failure}</Text>
+            <Text style={[t.font.meta, { color: t.danger, flex: 1 }]}>{failure}</Text>
           </View>
         ) : (
-          <Text style={[font.meta, { color: t.mutedForeground }]}>{status}</Text>
+          <Text style={[t.font.meta, { color: t.mutedForeground }]}>{status}</Text>
         )}
         {!on && b.reminder.settings && (
           <View style={styles.line}>
             <Ionicons name="time-outline" size={icon.sm} color={t.foreground} style={styles.lineIcon} />
-            <Text style={[font.meta, { color: t.foreground, flex: 1 }]}>
+            <Text style={[t.font.meta, { color: t.foreground, flex: 1 }]}>
               {b.reminder.never ? `${b.reminder.count} 篇收藏還沒有備份過` : '已經超過 30 天沒有備份了'}
             </Text>
           </View>
         )}
-        {note && <Text style={[font.meta, { color: note === '已備份' ? t.mutedForeground : t.danger }]}>{note}</Text>}
+        {note && <Text style={[t.font.meta, { color: note === '已備份' ? t.mutedForeground : t.danger }]}>{note}</Text>}
         <View style={styles.actions}>
           <TextButton
             title={on && !failure ? '換資料夾' : '選擇資料夾'}

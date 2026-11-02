@@ -16,7 +16,8 @@ def check(name, fg, bg, need=4.5):
     r = cr(fg, bg); ok = r >= need; fails += not ok
     print(f"{'PASS' if ok else 'FAIL'} {r:5.2f} (≥{need})  {name}: {fg} on {bg}")
 
-# 雜誌 direction (2026-10-30). Keep in sync with app/src/collection/tokens.js.
+# 雜誌 direction (2026-10-30). Keep in sync with app/src/collection/themes.js (THEMES.editorial);
+# contrast_check_themes.py checks every theme straight from that file.
 L = dict(bg='#F7F6F2', card='#FFFFFF', muted='#ECEAE4', fg='#1E1D1A', mutedFg='#5E5B53', border='#D9D6CE', outline='#8E8A80',
          primary='#1E1D1A', onPrimary='#F7F6F2', accent='#2E4E8F', danger='#B3261E', success='#2F7D4A', field='#ECEAE4')
 D = dict(bg='#161615', card='#1F1F1D', muted='#2A2A27', fg='#EDEBE6', mutedFg='#A9A69E', border='#36352F', outline='#6E6B63',

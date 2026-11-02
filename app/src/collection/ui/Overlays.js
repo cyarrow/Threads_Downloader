@@ -3,7 +3,7 @@ import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useReduceMotion } from '../../ui/motion';
-import { TOUCH, elevation, font, icon, radius, space, useCollectionTheme } from '../tokens';
+import { TOUCH, elevation, icon, space, useCollectionTheme } from '../tokens';
 import { PrimaryButton, Sheet } from './base';
 
 // A menu line, like an entry in a table of contents: hairline rule underneath,
@@ -22,7 +22,7 @@ function MenuRow({ iconName, label, onPress, danger, last }) {
       ]}
     >
       <Ionicons name={iconName} size={icon.md} color={color} />
-      <Text style={[font.body, styles.flex, { color }]}>{label}</Text>
+      <Text style={[t.font.body, styles.flex, { color }]}>{label}</Text>
     </Pressable>
   );
 }
@@ -67,12 +67,12 @@ export function Toast({ toast, onUndo, onHide }) {
   return (
     <Animated.View
       accessibilityLiveRegion="polite"
-      style={[styles.toast, elevation.level2, { backgroundColor: t.foreground, bottom: insets.bottom + 88, opacity: fade }]}
+      style={[styles.toast, { borderRadius: t.radius.sm }, elevation.level2, { backgroundColor: t.foreground, bottom: insets.bottom + 88, opacity: fade }]}
     >
-      <Text style={[font.label, { color: t.background, flex: 1 }]}>{toast.message}</Text>
+      <Text style={[t.font.label, { color: t.background, flex: 1 }]}>{toast.message}</Text>
       {toast.undo && (
         <Pressable onPress={onUndo} accessibilityRole="button" style={styles.undo}>
-          <Text style={[font.label, { color: t.background, textDecorationLine: 'underline' }]}>復原</Text>
+          <Text style={[t.font.label, { color: t.background, textDecorationLine: 'underline' }]}>復原</Text>
         </Pressable>
       )}
     </Animated.View>
@@ -85,14 +85,14 @@ export function EmptyState({ filtered, onAction }) {
   const t = useCollectionTheme();
   return (
     <View style={styles.empty}>
-      <View style={[styles.emptyIcon, { borderColor: t.border }]}>
+      <View style={[styles.emptyIcon, { borderRadius: t.radius.xs, borderColor: t.border }]}>
         <Ionicons name={filtered ? 'pricetag-outline' : 'bookmarks-outline'} size={28} color={t.mutedForeground} />
       </View>
-      <Text style={[font.title, { color: t.foreground }]}>
+      <Text style={[t.font.title, { color: t.foreground }]}>
         {filtered ? '找不到符合的貼文' : '還沒有收藏'}
       </Text>
       <View style={[styles.emptyRule, { backgroundColor: t.foreground }]} />
-      <Text style={[font.body, { color: t.mutedForeground }]}>
+      <Text style={[t.font.body, { color: t.mutedForeground }]}>
         {filtered ? '換個關鍵字或標籤，或清除篩選看看全部。' : '在 Threads 貼文點「分享」選「Threads 下載」，或按右下角的「收藏連結」貼上網址。'}
       </Text>
       <View style={styles.emptyAction}>
@@ -118,7 +118,6 @@ const styles = StyleSheet.create({
     left: space.lg,
     right: space.lg,
     minHeight: TOUCH,
-    borderRadius: radius.sm,
     flexDirection: 'row',
     alignItems: 'center',
     paddingLeft: space.lg,
@@ -126,7 +125,7 @@ const styles = StyleSheet.create({
   },
   undo: { minHeight: TOUCH, minWidth: TOUCH, justifyContent: 'center', alignItems: 'center', paddingHorizontal: space.md },
   empty: { alignItems: 'flex-start', gap: space.md, paddingHorizontal: space.sm, paddingVertical: space.xxl },
-  emptyIcon: { width: 56, height: 56, borderRadius: radius.xs, borderWidth: 1, alignItems: 'center', justifyContent: 'center', marginBottom: space.xs },
+  emptyIcon: { width: 56, height: 56, borderWidth: 1, alignItems: 'center', justifyContent: 'center', marginBottom: space.xs },
   emptyRule: { width: 32, height: 2 },
   emptyAction: { alignSelf: 'stretch', marginTop: space.sm },
 });

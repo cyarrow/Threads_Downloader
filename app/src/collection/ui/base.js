@@ -4,7 +4,8 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { spring, useReduceMotion } from '../../ui/motion';
-import { TOUCH, font, icon, radius, space, tagColors, useCollectionTheme } from '../tokens';
+import { TOUCH, icon, space, useCollectionTheme } from '../tokens';
+import { TagMark } from './theme/TagMark';
 
 // Haptics are a nice-to-have; never let them throw (e.g. on web).
 export function buzz(kind) {
@@ -69,8 +70,9 @@ export function IconButton({ name, label, onPress, color, size = icon.lg, disabl
   );
 }
 
-// Tag chip (雜誌 style): a hairline box with square corners; the tag's hue shows
-// only as a small colour square, so the chip row reads like a contents list.
+// Tag chip: a hairline box with near-square corners (雜誌) or square ones (底片);
+// the tag's hue shows only as its marker (TagMark: a small square, or a thin bar
+// in 底片), so the chip row reads like a contents list.
 // Selected chips fill with ink and add a checkmark (colour is never the only signal).
 // variant: 'display' (read-only, compact) | 'choice' (selectable).
 // `neutral` chips (全部, +N, 新增) have no colour square.
@@ -79,18 +81,18 @@ export function TagChip({ label, hue, selected, onPress, variant = 'choice', neu
   const display = variant === 'display';
   const on = selected && !display;
   const text = on ? t.background : t.foreground;
-  const marker = neutral ? null : tagColors(hue, t.scheme, false).dot;
   const content = (
     <View
       style={[
         display ? styles.chipDisplay : styles.chip,
+        { borderRadius: display ? t.radius.xs : t.radius.sm },
         on ? { backgroundColor: t.foreground, borderColor: t.foreground } : { borderColor: display ? t.border : t.outline },
       ]}
     >
       {on && <Ionicons name="checkmark" size={icon.sm} color={text} />}
-      {marker && !on && <View style={[styles.square, { backgroundColor: marker }]} />}
+      {!neutral && !on && <TagMark hue={hue} size={display ? 'sm' : 'md'} />}
       {iconName && <Ionicons name={iconName} size={icon.sm} color={text} />}
-      <Text style={[display ? font.caption : font.label, { color: text }]} numberOfLines={1}>
+      <Text style={[display ? t.font.caption : t.font.label, { color: text }]} numberOfLines={1}>
         {label}
       </Text>
       {trailingIcon && <Ionicons name={trailingIcon} size={icon.sm} color={text} />}
@@ -134,12 +136,18 @@ export function Sheet({ visible, onClose, title, children, footer }) {
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
       <View style={styles.sheetRoot}>
         <Pressable style={[StyleSheet.absoluteFill, { backgroundColor: t.scrim }]} onPress={onClose} accessibilityLabel="關閉" />
-        <Animated.View style={[styles.panel, { backgroundColor: t.card, paddingBottom: insets.bottom + space.lg }, panelMotion]}>
+        <Animated.View
+          style={[
+            styles.panel,
+            { backgroundColor: t.card, borderTopLeftRadius: t.radius.sheet, borderTopRightRadius: t.radius.sheet, paddingBottom: insets.bottom + space.lg },
+            panelMotion,
+          ]}
+        >
           <View style={[styles.handle, { backgroundColor: t.border }]} />
           {title && (
             // Like a column heading: WenKai title sitting on a hairline rule.
             <View style={[styles.sheetHeader, { borderBottomColor: t.border }]}>
-              <Text style={[font.title, { color: t.foreground, flex: 1 }]} accessibilityRole="header">
+              <Text style={[t.font.title, { color: t.foreground, flex: 1 }]} accessibilityRole="header">
                 {title}
               </Text>
               <IconButton name="close" label="關閉" onPress={onClose} color={t.mutedForeground} />
@@ -153,8 +161,8 @@ export function Sheet({ visible, onClose, title, children, footer }) {
   );
 }
 
-// Buttons (雜誌): ink-filled primary and hairline-outlined secondary, with the
-// same near-square corners as the tag chips so a row of actions reads as one set.
+// Buttons: ink-filled primary and hairline-outlined secondary, with the same
+// corners as the tag chips (t.radius.sm) so a row of actions reads as one set.
 export function PrimaryButton({ title, iconName, onPress, disabled }) {
   const t = useCollectionTheme();
   return (
@@ -163,10 +171,10 @@ export function PrimaryButton({ title, iconName, onPress, disabled }) {
       disabled={disabled}
       accessibilityRole="button"
       accessibilityState={{ disabled: !!disabled }}
-      style={[styles.primary, { backgroundColor: t.primary, opacity: disabled ? 0.45 : 1 }]}
+      style={[styles.primary, { backgroundColor: t.primary, borderRadius: t.radius.sm, opacity: disabled ? 0.45 : 1 }]}
     >
       {iconName && <Ionicons name={iconName} size={icon.md} color={t.onPrimary} />}
-      <Text style={[font.headline, styles.primaryText, { color: t.onPrimary }]}>{title}</Text>
+      <Text style={[t.font.headline, styles.primaryText, { color: t.onPrimary }]}>{title}</Text>
     </PressScale>
   );
 }
@@ -179,10 +187,10 @@ export function SecondaryButton({ title, iconName, onPress, danger }) {
       onPress={onPress}
       accessibilityRole="button"
       containerStyle={styles.flex}
-      style={[styles.secondary, { borderColor: t.outline }]}
+      style={[styles.secondary, { borderColor: t.outline, borderRadius: t.radius.sm }]}
     >
       {iconName && <Ionicons name={iconName} size={icon.md} color={color} />}
-      <Text style={[font.label, { color }]}>{title}</Text>
+      <Text style={[t.font.label, { color }]}>{title}</Text>
     </PressScale>
   );
 }
@@ -192,7 +200,6 @@ const styles = StyleSheet.create({
   chip: {
     minHeight: 36,
     paddingHorizontal: space.md,
-    borderRadius: radius.sm,
     borderWidth: 1,
     flexDirection: 'row',
     alignItems: 'center',
@@ -201,19 +208,15 @@ const styles = StyleSheet.create({
   chipDisplay: {
     height: 24,
     paddingHorizontal: space.sm,
-    borderRadius: radius.xs,
     borderWidth: 1,
     flexDirection: 'row',
     alignItems: 'center',
     alignSelf: 'flex-start',
     gap: space.xs,
   },
-  square: { width: 8, height: 8, borderRadius: 1 },
   sheetRoot: { flex: 1, justifyContent: 'flex-end' },
   panel: {
     maxHeight: '88%',
-    borderTopLeftRadius: radius.sheet,
-    borderTopRightRadius: radius.sheet,
     paddingHorizontal: space.lg,
     paddingTop: space.sm,
   },
@@ -226,7 +229,6 @@ const styles = StyleSheet.create({
   },
   primary: {
     minHeight: 52,
-    borderRadius: radius.sm,
     flexDirection: 'row',
     gap: space.sm,
     alignItems: 'center',
@@ -236,7 +238,6 @@ const styles = StyleSheet.create({
   primaryText: { letterSpacing: 1 },
   secondary: {
     minHeight: TOUCH,
-    borderRadius: radius.sm,
     borderWidth: 1,
     flexDirection: 'row',
     gap: space.sm,

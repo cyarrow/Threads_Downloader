@@ -1,13 +1,15 @@
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { tagNameError } from '../collectionModel';
+import { lateSuggestions } from '../quickSave';
 import { reasonText } from '../suggest';
 import { cardStill } from '../media';
 import { tagHue, tagLabel } from '../tagModel';
 import { TOUCH, font, icon, radius, space, useCollectionTheme } from '../tokens';
 import { PrimaryButton, Sheet, TagChip } from './base';
+import { QuickPanel, UnsortedButton } from './QuickSave';
 
 function NewTagForm({ index, parentId: initialParent, onCreate, onCancel }) {
   const t = useCollectionTheme();
@@ -67,17 +69,46 @@ function NewTagForm({ index, parentId: initialParent, onCreate, onCancel }) {
   );
 }
 
+function SuggestionGroup({ items, index, selected, onToggle }) {
+  const t = useCollectionTheme();
+  return (
+    <View style={styles.group}>
+      <Text style={[font.meta, { color: t.mutedForeground }]}>建議</Text>
+      {items.map(({ tag, reasons }) => (
+        <View key={tag.id} style={styles.suggestion}>
+          <TagChip
+            hue={tagHue(tag, index.byId)}
+            label={tagLabel(tag, index.byId)}
+            selected={selected.includes(tag.id)}
+            onPress={() => onToggle(tag.id)}
+            a11yLabel={`${tagLabel(tag, index.byId)}，${reasonText(reasons)}`}
+          />
+          <Text style={[font.meta, styles.reason, { color: t.mutedForeground }]} numberOfLines={2}>
+            {reasonText(reasons)}
+          </Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
 // Multi-select picker for two-level tags. Tapping a parent that has children
 // expands it; its row starts with "整個「X」" to tag the parent itself.
+// Nothing above a chip may change after the picker opens (it would shift the
+// chip under the finger): suggestions on screen at open stay pinned at the top,
+// and ones that arrive later (the post finished loading) go to the end.
 export function TagPicker({ index, selected, onToggle, onCreate, recentIds = [], suggestions = [] }) {
   const t = useCollectionTheme();
   const [open, setOpen] = useState(() =>
     index.parents.filter((p) => (index.children[p.id] || []).some((c) => selected.includes(c.id))).map((p) => p.id),
   );
   const [creating, setCreating] = useState(null); // { parentId } while the form is open
+  const [pinned] = useState(suggestions);
 
-  const suggestedIds = suggestions.map((sg) => sg.tag.id);
-  const recent = recentIds.map((id) => index.byId[id]).filter((tg) => tg && !suggestedIds.includes(tg.id));
+  const top = pinned.filter((sg) => index.byId[sg.tag.id]);
+  const late = lateSuggestions(pinned, suggestions);
+  const pinnedIds = pinned.map((sg) => sg.tag.id);
+  const recent = recentIds.map((id) => index.byId[id]).filter((tg) => tg && !pinnedIds.includes(tg.id));
   // A parent only looks selected when the parent itself is tagged; picked
   // children show as a count so it's clear the parent isn't tagged too.
   const pickedChildren = (p) => (index.children[p.id] || []).filter((c) => selected.includes(c.id)).length;
@@ -91,25 +122,7 @@ export function TagPicker({ index, selected, onToggle, onCreate, recentIds = [],
 
   return (
     <View style={styles.picker}>
-      {suggestions.length > 0 && (
-        <View style={styles.group}>
-          <Text style={[font.meta, { color: t.mutedForeground }]}>建議</Text>
-          {suggestions.map(({ tag, reasons }) => (
-            <View key={tag.id} style={styles.suggestion}>
-              <TagChip
-                hue={tagHue(tag, index.byId)}
-                label={tagLabel(tag, index.byId)}
-                selected={selected.includes(tag.id)}
-                onPress={() => onToggle(tag.id)}
-                a11yLabel={`${tagLabel(tag, index.byId)}，${reasonText(reasons)}`}
-              />
-              <Text style={[font.meta, styles.reason, { color: t.mutedForeground }]} numberOfLines={2}>
-                {reasonText(reasons)}
-              </Text>
-            </View>
-          ))}
-        </View>
-      )}
+      {top.length > 0 && <SuggestionGroup items={top} index={index} selected={selected} onToggle={onToggle} />}
       {recent.length > 0 && (
         <View style={styles.group}>
           <Text style={[font.meta, { color: t.mutedForeground }]}>最近用過</Text>
@@ -180,6 +193,7 @@ export function TagPicker({ index, selected, onToggle, onCreate, recentIds = [],
           onCancel={() => setCreating(null)}
         />
       )}
+      {late.length > 0 && <SuggestionGroup items={late} index={index} selected={selected} onToggle={onToggle} />}
     </View>
   );
 }
@@ -216,9 +230,23 @@ function Preview({ post, loading }) {
 
 // Appears right after a link is saved (from Threads' share menu or the + button).
 // The post is already stored in 未分類, so closing never loses anything.
-export function SaveSheet({ visible, mode, post, loading, index, selected, onToggle, onCreateTag, recentIds, suggestions, downloadToo, onDownloadToo, onDone, onClose }) {
+// `quick` (shared in from Threads, setting 分享時用快速面板 on): opens compact —
+// up to three one-tap tag rows (`onQuickPick(tagId)` saves and finishes),
+// 其他標籤… (`onExpand`) for the full picker, and 先存到未分類 in place of 完成.
+//
+// The full picker opens at the sheet's full height instead of fitting its
+// content: the sheet is anchored to the bottom of the screen, so a sheet that
+// grew with its content pushed everything above a newly opened 小標籤 row up
+// (the 大標籤 just tapped jumped ~90–140px). At a fixed height the picker
+// scrolls inside it and a row opening below a chip leaves the chip in place.
+export function SaveSheet({
+  visible, mode, quick, post, loading, index, selected, onToggle, onCreateTag, recentIds, suggestions,
+  downloadToo, onDownloadToo, onDone, onClose, onQuickPick, onExpand,
+}) {
   const t = useCollectionTheme();
+  const { height } = useWindowDimensions();
   const isNew = mode === 'new';
+  const compact = isNew && !!quick;
   return (
     <Sheet
       visible={visible}
@@ -248,14 +276,28 @@ export function SaveSheet({ visible, mode, post, loading, index, selected, onTog
               />
             </Pressable>
           )}
-          <PrimaryButton title="完成" onPress={onDone} />
+          {compact ? <UnsortedButton onPress={onDone} /> : <PrimaryButton title="完成" onPress={onDone} />}
         </View>
       }
     >
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        style={[styles.scroll, !compact && { height }]}
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+      >
         {isNew && <Preview post={post} loading={loading} />}
-        <Text style={[font.headline, { color: t.foreground }]}>{isNew ? '加上標籤' : '標籤'}</Text>
-        {visible && (
+        {visible && compact && (
+          <QuickPanel
+            post={post}
+            index={index}
+            suggestions={suggestions}
+            recentIds={recentIds}
+            onPick={onQuickPick}
+            onMore={onExpand}
+          />
+        )}
+        {!compact && <Text style={[font.headline, { color: t.foreground }]}>{isNew ? '加上標籤' : '標籤'}</Text>}
+        {visible && !compact && (
           <TagPicker
             index={index}
             selected={selected}
@@ -265,7 +307,7 @@ export function SaveSheet({ visible, mode, post, loading, index, selected, onTog
             suggestions={suggestions}
           />
         )}
-        {isNew && selected.length === 0 && (
+        {isNew && !compact && selected.length === 0 && (
           <Text style={[font.meta, { color: t.mutedForeground }]}>不選也可以，會先放在「未分類」。</Text>
         )}
       </ScrollView>
@@ -274,7 +316,9 @@ export function SaveSheet({ visible, mode, post, loading, index, selected, onTog
 }
 
 const styles = StyleSheet.create({
-  scroll: { flexGrow: 0 },
+  // flexShrink lets a full-height picker give way to the header and footer
+  // inside the panel's maxHeight (and to the keyboard).
+  scroll: { flexGrow: 0, flexShrink: 1 },
   content: { gap: space.md, paddingBottom: space.md },
   picker: { gap: space.lg },
   group: { gap: space.sm },
@@ -285,7 +329,9 @@ const styles = StyleSheet.create({
   preview: { flexDirection: 'row', gap: space.md, padding: space.md, borderRadius: radius.md, alignItems: 'center' },
   thumb: { width: 56, height: 56, borderRadius: radius.sm },
   thumbQuote: { alignItems: 'center', justifyContent: 'center' },
-  previewText: { flex: 1, gap: 2 },
+  // Room for the author + two caption lines from the start, so the preview
+  // doesn't grow (and move the picker) when the post finishes loading.
+  previewText: { flex: 1, gap: 2, minHeight: 58, justifyContent: 'center' },
   skeletonLine: { height: 12, borderRadius: 6, width: '80%', marginTop: 4 },
   form: { gap: space.sm, padding: space.md, borderRadius: radius.md, borderWidth: 1 },
   input: { minHeight: TOUCH, borderRadius: radius.sm, borderWidth: 1, paddingHorizontal: space.md },

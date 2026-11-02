@@ -20,6 +20,7 @@ import { isLoggedInUrl } from '../../threads';
 import { imageSource } from '../media';
 import { TOUCH, elevation, font, icon, radius, space, useCollectionTheme } from '../tokens';
 import { IconButton, PrimaryButton, SecondaryButton, Sheet } from './base';
+import { QuickSaveSettingRow } from './QuickSave';
 
 const LOGIN_URL = 'https://www.threads.com/login';
 
@@ -260,11 +261,12 @@ function SettingsRow({ iconName, label, value, onPress }) {
   );
 }
 
-export function SettingsSheet({ visible, onClose, onLogin, onTags, onExport, onImport, onCheckUpdate, updateStatus, version, stats }) {
+export function SettingsSheet({ visible, onClose, onLogin, onTags, onExport, onImport, onCheckUpdate, updateStatus, version, stats, quickSave, onQuickSave }) {
   return (
     <Sheet visible={visible} onClose={onClose} title="設定">
       <View style={styles.settings}>
         <SettingsRow iconName="pricetags-outline" label="標籤管理" onPress={onTags} />
+        <QuickSaveSettingRow value={quickSave} onChange={onQuickSave} />
         <SettingsRow iconName="share-outline" label="匯出備份" value="換手機時用" onPress={onExport} />
         <SettingsRow iconName="download-outline" label="匯入備份" onPress={onImport} />
         <SettingsRow iconName="person-circle-outline" label="登入或切換 Threads 帳號" onPress={onLogin} />

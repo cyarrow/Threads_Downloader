@@ -61,13 +61,23 @@
                     "weight": 700
                   }
                 ]
+              },
+              {
+                "fontFamily": "ImprintMono",
+                "fontDefinitions": [
+                  {
+                    "path": "./assets/fonts/ImprintMono-Regular.ttf",
+                    "weight": 400
+                  }
+                ]
               }
             ]
           },
           "ios": {
             "fonts": [
               "./assets/fonts/WenKaiTC-Regular.ttf",
-              "./assets/fonts/WenKaiTC-Bold.ttf"
+              "./assets/fonts/WenKaiTC-Bold.ttf",
+              "./assets/fonts/ImprintMono-Regular.ttf"
             ]
           }
         }

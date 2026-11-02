@@ -1,7 +1,7 @@
 # Design System Master File — Threads 收藏
 
 > **用法：** 做某個畫面時，先看 `pages/<畫面>.md`；有寫的規則以頁面檔為準，其餘一律照這份 Master。
-> 改任何顏色後，執行 `python3 design-system/threads-collection/contrast_check.py`，要看到 `FAILS: 0` 才能用。
+> 改任何顏色後，執行 `python3 design-system/threads-collection/contrast_check_themes.py`（直接讀 `app/src/collection/themes.js`，檢查所有主題 × 淺色 / 深色），要看到 `FAILS: 0` 才能用。§2–§4 是「雜誌」主題；其他主題見 §16。
 
 ---
 
@@ -16,6 +16,7 @@
 | 不採用 | Page Pattern「Product Demo + Features」（那是 landing page，不適用 App 內畫面）、hover 動效與 GSAP（行動裝置沒有 hover，改用按壓回饋與彈簧） |
 | 使用者決定 | 卡片牆＝兩欄瀑布流＋可放大成整排精選；分享預設＝收藏並選標籤（可勾同時下載）；標籤＝兩層、可多選、可自建；下載紀錄併入收藏 |
 | 視覺方向（2026-10-30） | 使用者選「雜誌」：紙白底、墨色字、唯一強調色藍、卡片無框無角標、欄目標、細線分隔、報頭「THREADS 收藏誌」、方角細框標籤、有字的 FAB；純文字貼文借用小卡方向的「標籤色文字卡」。來源：視覺 agent 分支 `worktree-agent-acd11e8a117f64f8f` |
+| 主題（2026-11-02） | 加上可切換主題（設定 › 主題）：預設「雜誌」，另一個是使用者從可點預覽裡選的「底片」。規格見 §16 |
 | 細節預設 | 收藏完自動回 Threads；卡片不顯示讚數；預設標籤：追星、生活、美食、旅遊、梗圖；「同時下載」記住上次選擇；舊紀錄搬進「未分類」並標已下載 |
 
 ---
@@ -237,7 +238,9 @@
 
 ## 12. 驗證紀錄
 
-- `contrast_check.py`：2026-10-30 改成雜誌色票後重跑，130 組檢查（淺色 / 深色語意色、FAB 對背景、已選標籤、`accent` 欄目標；9 組標籤色的一般、已選、欄目標對背景、文字卡內文），結果 `FAILS: 0`。
+- `contrast_check_themes.py`：2026-11-02 加入「底片」主題，從 `themes.js` 直接讀色票，2 個主題 × 淺色 / 深色共 296 組（文字在頁面、面板、muted、輸入框、文字卡紙、相片白邊上 ≥ 4.5；已選標籤 / 提示 / 已選分段；▶ 影片標示疊在白、灰、黑照片上；控制邊框、FAB、開關軌道 ≥ 3；細線、膠卷齒孔、紙上橫線可見；9 個標籤色的欄目標文字對頁面與面板、文字卡內文與日期對它的紙），結果 `FAILS: 0`。最低：底片淺色 `outline` 對頁面 3.10、底片深色 `outline` 對面板 3.18、底片淺色 `accent` 對頁面 4.87、底片淺色 `mutedForeground` 對 muted 4.84。
+- 照片上的日期壓印（`stamp` 橘色）無法對「任何照片」量對比：加 6px 同色系光暈（`stampGlow`）並保持 12pt 以上；它是裝飾，同樣的日期在內容頁以文字「收藏於 …」出現。
+- `contrast_check.py`（只有雜誌，保留作對照）：2026-10-30 改成雜誌色票後重跑，130 組檢查（淺色 / 深色語意色、FAB 對背景、已選標籤、`accent` 欄目標；9 組標籤色的一般、已選、欄目標對背景、文字卡內文），結果 `FAILS: 0`。
 - 2026-10-29 舊色票（琥珀）90 組 `FAILS: 0`，已被取代。
 - 改任何色碼後重新執行，並更新這裡的日期。
 
@@ -276,3 +279,98 @@
 - [ ] 開啟「減少動態效果」與最大字體都檢查過
 - [ ] 停用狀態看得出來且不能點；螢幕閱讀器順序與標籤正確
 - [ ] 長按、滑動類操作都有看得到的按鈕替代
+
+---
+
+## 16. 主題（雜誌 / 底片）
+
+### 16.1 架構
+
+- 主題清單在 `app/src/collection/themes.js`（純資料，沒有 RN import）：每個主題有 `name`、淺色與深色兩組 `colors`（全部 27 個 token，見 `COLOR_TOKENS`）、`knobs`（版面開關與圓角）。`test/themes.test.mjs` 檢查每個主題、每個模式都定義齊全。
+- 使用者在 **設定 › 主題**（雜誌 | 底片 分段按鈕）切換，立即生效；選擇存在 SQLite `meta` 表的 `theme`（`store.js`，和 `quick_save` 同一套），預設 `editorial`，讀到不認得的值也回到預設。
+- `CollectionProvider` 把選擇放進 `ThemeProvider`（`tokens.js`），所以 App 裡所有畫面都拿得到。主題在開啟資料庫後最先讀，早於預設標籤與舊紀錄搬移。
+
+### 16.2 畫面怎麼用（新畫面照這個寫）
+
+```js
+const t = useCollectionTheme();
+// 顏色：t.background、t.card、t.foreground、t.mutedForeground、t.outline、t.accent…（和以前一樣）
+// t.scheme 'light' | 'dark'；t.theme 'editorial' | 'film'；t.themeName '雜誌' | '底片'
+// t.font.display / title / card / quote / kicker / imprint …   ← 不要再 import { font }
+// t.radius.xs / sm / md / lg / sheet / full                    ← 不要再 import { radius }
+// 版面開關：t.printFrame、t.rule ('line' | 'sprocket')、t.marker ('square' | 'bar')、
+//          t.textCard ('tint' | 'lined')、t.kickerTone ('tag' | 'muted')
+// 標籤色：t.tag(hue) → { mark, text, paper, onPaper, onPaperMuted, paperRule }
+```
+
+元件（`app/src/collection/ui/theme/`，`import { … } from './theme'`）：
+
+| 元件 | 用途 | 雜誌 | 底片 |
+| --- | --- | --- | --- |
+| `<TagMark hue size />` | 標籤色記號，`size` xs / sm / md / lg | 方塊 6 / 8 / 8 / 12 | 直條 2×10 / 3×12 / 3×16 / 4×18 |
+| `<TagKicker hue label featured untagged />` | 欄目標：〔精選〕記號＋名稱 | 名稱用標籤字色 | 名稱用 `mutedForeground` |
+| `<Print savedAt kind count imprint>` 包一張圖 | 照片 | 只裁成 `radius.xs` 圓角，不在照片上放任何字 | 相片：白邊 6（下 8）、淡陰影、方角、右下橘色日期 `'26 11  2`、`kind='video'` 左下「▶ 影片」、`'multi'` 右上「N 張」 |
+| `<DateImprint at />` | 單獨的日期壓印 | — | 同上的日期字 |
+| `<PhotoBack hue text savedAt author />` | 純文字貼文卡 | 標籤色紙＋大「「」 | 相片背面：有橫線的紙、文楷內文坐在線上、底下小日期（＋@作者） |
+| `<MastheadRule />` | 報頭下的線 | 2px 墨線 | 膠卷齒孔條 |
+| `<SprocketRule height pitch />` | 齒孔條本身 | — | — |
+| `<ThemeSettingRow />` | 設定裡的「主題」列 | | |
+
+`PRINT_INSET`（照片左右多出的寬度）給要自己算寬度的輪播用（見 `PostDetail`）。
+
+**規則**
+1. **文字顏色和它底下的面一起選。** 文字只能用和底色同一組的 token：頁面 / 面板上用 `foreground`、`mutedForeground`、`accent`、`danger`；標籤卡紙上用 `t.tag(hue).onPaper` / `.onPaperMuted`（紙用 `.paper`）；相片白邊上用 `onEdge` / `onEdgeMuted`；照片上的小標示用 `badge` + `onBadge`；墨色填滿（已選標籤、提示、按下的列）上用 `background`（或面板上用 `card`）。**不要**把某主題的底色配另一組的字色，也不要自己算色票（之前預覽就是深色標籤底配深色字才看不見）。
+2. 舊的 `tagColors()`、`tagTint()`、`font`、`radius` 仍可 import（等於雜誌的值），只為了還沒改的檔案能編譯；新畫面一律用 `t.*`。
+3. 照片上只放三種東西：日期壓印（只在 `t.printFrame`）、▶ 影片、N 張。不要序號（No.11、ROLL、FRAME）、不要英文分頁名。
+4. 影片播放時把日期壓印藏起來（`imprint={false}`），免得蓋住原生控制列。
+5. 改任何色碼後跑 `contrast_check_themes.py`。
+
+### 16.3 底片色票（`themes.js` 的 `film`）
+
+| Token | 淺色（相簿頁） | 深色（暗房） | 用途 |
+| --- | --- | --- | --- |
+| `background` | `#E6E0D4` | `#141311` | 頁面 |
+| `card` | `#F4F0E7` | `#1D1B18` | 面板 |
+| `muted` / `field` | `#D8D1C2` / `#DCD5C7` | `#2A2723` | 骨架、輸入框 |
+| `foreground` | `#26231E` | `#ECE6DA` | 主要文字、已選填色 |
+| `mutedForeground` | `#5C554A` | `#A89F90` | 次要文字、欄目標文字 |
+| `border` | `#C9C1B1` | `#34302A` | 細線 |
+| `outline` | `#857D6E` | `#71695D` | 可點控制項邊框（≥ 3:1） |
+| `primary` / `onPrimary` | `#26231E` / `#F4F0E7` | `#ECE6DA` / `#141311` | 按鈕、FAB |
+| `accent` | `#9E4320` 鏽橘 | `#F0A06A` | 唯一彩色強調：連結、精選 |
+| `danger` | `#A3241B` | `#F2978F` | 刪除、錯誤 |
+| `success` | `#3A6E3C` | `#7CC793` | 成功圖示 |
+| `paper` / `onPaper` / `onPaperMuted` / `paperRule` | `#F7F4EC` / `#26231E` / `#5C554A` / `#DCD4C4` | `#201E1A` / `#ECE6DA` / `#A89F90` / `#363229` | 純文字卡（相片背面） |
+| `edge` / `onEdge` / `onEdgeMuted` | `#FBF8F1` / `#26231E` / `#5C554A` | `#EDE7DA` / `#26231E` / `#5C554A` | 相片白邊（深色模式也是亮的白邊）與印在白邊上的字 |
+| `stamp` / `stampGlow` | `#E8772E` / `rgba(255,120,40,0.45)` | 同左 | 日期壓印與光暈 |
+| `sprocket` / `sprocketHole` | `#26231E` / `#E6E0D4` | `#35312B` / `#141311` | 膠卷齒孔條 |
+| `badge` / `onBadge` | `rgba(0,0,0,0.6)` / `#FFFFFF` | 同左 | ▶ 影片、N 張 |
+| `scrim` | `rgba(20,16,10,0.5)` | `rgba(0,0,0,0.6)` | 面板遮罩 |
+
+標籤色沿用 §2.2 的 9 個色（`dot` 當直條）；底片的欄目標文字一律 `mutedForeground`，所以不會有「標籤色字在深色底上」的組合。
+
+**版面開關**：`printFrame: true`、`rule: 'sprocket'`、`marker: 'bar'`、`textCard: 'lined'`、`kickerTone: 'muted'`、圓角全部 0（`full` 999 保留給 FAB、開關）。
+
+### 16.4 底片字體
+
+| Token | 底片 | 雜誌 |
+| --- | --- | --- |
+| `display` | 30 / 38 文楷 **Bold**，字距 1 | 32 / 40 文楷 |
+| `title` | 20 / 28 文楷 **Bold** | 21 / 29 文楷 |
+| `card` | 14 / 22 文楷（媒體卡 2 行） | 15 / 23（3 行） |
+| `quote` | 16 / 26 文楷（行高 = 紙上橫線間距） | 18 / 28 |
+| `kicker` | 12 / 16 / 500，字距 1 | 12 / 16 / 600，字距 1.5 |
+| `imprint` | 12 / 14 ImprintMono（兩個主題都有） | 同左 |
+
+- **標題不用系統 `serif`**：AOSP 的 `fonts.xml` 只把 `NotoSerifCJK-Regular.ttc`（400）設成 zh-Hant 的 `fallbackFor="serif"`，沒有粗體，而且各廠牌 ROM 會換掉字型設定，不保證有宋體。所以標題改用已經打包的文楷 Bold，不另外打包好幾 MB 的中文明體。
+- **日期字**：IBM Plex Mono Medium 的數字子集（`0-9 ' 空白 . , : / - ·`，3.7 KB），因為 Plex 有保留字型名稱，子集改名為 `ImprintMono`（見 `app/assets/fonts/README.md`）。Android 用 expo-font 設定外掛註冊成 XML 字族 `ImprintMono`；網頁版由 `fonts.web.js` 載入。
+- 網頁版的文楷 Bold 另外註冊成 `WenKaiBold` 字族（不再加 `fontWeight`，避免瀏覽器再加粗一次）。
+
+### 16.5 底片元件樣式
+
+- **卡片牆**：照片是 `<Print>`；卡片之間不畫細線；欄目標＝直條＋`mutedForeground` 名稱；內文 2 行；資訊列只在有「已刪除 / 已下載」時出現（▶ 影片、N 張在照片上，作者在文字卡背面）。純文字貼文是 `<PhotoBack>`。
+- **標籤膠囊**：方角、直條記號；已選＝墨色填滿＋✓。
+- **面板**：方角上緣；標題文楷 Bold。按鈕方角。
+- **內容頁**：媒體輪播放進相片框（左右各留 14 的頁面），右下日期壓印（影片播放時隱藏）；純文字貼文是大一號的相片背面。
+- **回顧卡**：上緣的墨線換成細齒孔條。
+- 卡片牆的報頭、FAB 由新的分頁畫面處理：報頭用 `t.font.display`，下面放 `<MastheadRule />`，上方小字在底片只寫「N 篇」。

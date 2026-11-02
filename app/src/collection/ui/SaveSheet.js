@@ -7,7 +7,7 @@ import { lateSuggestions } from '../quickSave';
 import { reasonText } from '../suggest';
 import { cardStill } from '../media';
 import { tagHue, tagLabel } from '../tagModel';
-import { TOUCH, font, icon, radius, space, useCollectionTheme } from '../tokens';
+import { TOUCH, icon, space, useCollectionTheme } from '../tokens';
 import { PrimaryButton, Sheet, TagChip } from './base';
 import { QuickPanel, UnsortedButton } from './QuickSave';
 
@@ -24,8 +24,8 @@ function NewTagForm({ index, parentId: initialParent, onCreate, onCancel }) {
   };
 
   return (
-    <View style={[styles.form, { backgroundColor: t.muted, borderColor: t.border }]}>
-      <Text nativeID="newTagLabel" style={[font.label, { color: t.foreground }]}>新標籤名稱</Text>
+    <View style={[styles.form, { borderRadius: t.radius.md, backgroundColor: t.muted, borderColor: t.border }]}>
+      <Text nativeID="newTagLabel" style={[t.font.label, { color: t.foreground }]}>新標籤名稱</Text>
       <TextInput
         value={name}
         onChangeText={(v) => {
@@ -38,15 +38,15 @@ function NewTagForm({ index, parentId: initialParent, onCreate, onCancel }) {
         placeholderTextColor={t.mutedForeground}
         accessibilityLabel="新標籤名稱"
         accessibilityLabelledBy="newTagLabel"
-        style={[font.body, styles.input, { color: t.foreground, backgroundColor: t.card, borderColor: error ? t.danger : t.outline }]}
+        style={[t.font.body, styles.input, { borderRadius: t.radius.sm, color: t.foreground, backgroundColor: t.card, borderColor: error ? t.danger : t.outline }]}
       />
       {error && (
         <View style={styles.error} accessibilityLiveRegion="polite">
           <Ionicons name="alert-circle" size={icon.sm} color={t.danger} />
-          <Text style={[font.meta, { color: t.danger }]}>{error}</Text>
+          <Text style={[t.font.meta, { color: t.danger }]}>{error}</Text>
         </View>
       )}
-      <Text style={[font.label, { color: t.foreground }]}>放在</Text>
+      <Text style={[t.font.label, { color: t.foreground }]}>放在</Text>
       <View style={styles.chips}>
         <TagChip neutral label="新的大標籤" selected={parentId === null} onPress={() => setParentId(null)} />
         {index.parents.map((p) => (
@@ -55,14 +55,14 @@ function NewTagForm({ index, parentId: initialParent, onCreate, onCancel }) {
       </View>
       <View style={styles.formActions}>
         <Pressable onPress={onCancel} accessibilityRole="button" style={styles.textButton}>
-          <Text style={[font.label, { color: t.accent }]}>取消</Text>
+          <Text style={[t.font.label, { color: t.accent }]}>取消</Text>
         </Pressable>
         <Pressable
           onPress={submit}
           accessibilityRole="button"
-          style={[styles.addButton, { backgroundColor: t.foreground }]}
+          style={[styles.addButton, { borderRadius: t.radius.md, backgroundColor: t.foreground }]}
         >
-          <Text style={[font.label, { color: t.background }]}>新增</Text>
+          <Text style={[t.font.label, { color: t.background }]}>新增</Text>
         </Pressable>
       </View>
     </View>
@@ -73,7 +73,7 @@ function SuggestionGroup({ items, index, selected, onToggle }) {
   const t = useCollectionTheme();
   return (
     <View style={styles.group}>
-      <Text style={[font.meta, { color: t.mutedForeground }]}>建議</Text>
+      <Text style={[t.font.meta, { color: t.mutedForeground }]}>建議</Text>
       {items.map(({ tag, reasons }) => (
         <View key={tag.id} style={styles.suggestion}>
           <TagChip
@@ -83,7 +83,7 @@ function SuggestionGroup({ items, index, selected, onToggle }) {
             onPress={() => onToggle(tag.id)}
             a11yLabel={`${tagLabel(tag, index.byId)}，${reasonText(reasons)}`}
           />
-          <Text style={[font.meta, styles.reason, { color: t.mutedForeground }]} numberOfLines={2}>
+          <Text style={[t.font.meta, styles.reason, { color: t.mutedForeground }]} numberOfLines={2}>
             {reasonText(reasons)}
           </Text>
         </View>
@@ -125,7 +125,7 @@ export function TagPicker({ index, selected, onToggle, onCreate, recentIds = [],
       {top.length > 0 && <SuggestionGroup items={top} index={index} selected={selected} onToggle={onToggle} />}
       {recent.length > 0 && (
         <View style={styles.group}>
-          <Text style={[font.meta, { color: t.mutedForeground }]}>最近用過</Text>
+          <Text style={[t.font.meta, { color: t.mutedForeground }]}>最近用過</Text>
           <View style={styles.chips}>
             {recent.map((tag) => (
               <TagChip
@@ -140,7 +140,7 @@ export function TagPicker({ index, selected, onToggle, onCreate, recentIds = [],
         </View>
       )}
       <View style={styles.group}>
-        <Text style={[font.meta, { color: t.mutedForeground }]}>全部標籤</Text>
+        <Text style={[t.font.meta, { color: t.mutedForeground }]}>全部標籤</Text>
         <View style={styles.chips}>
           {index.parents.map((p) => {
             const kids = index.children[p.id] || [];
@@ -202,24 +202,24 @@ function Preview({ post, loading }) {
   const t = useCollectionTheme();
   const first = post && cardStill(post);
   return (
-    <View style={[styles.preview, { borderColor: t.border }]} accessibilityLiveRegion="polite">
+    <View style={[styles.preview, { borderRadius: t.radius.sm, borderColor: t.border }]} accessibilityLiveRegion="polite">
       {loading ? (
-        <View style={[styles.thumb, { backgroundColor: t.muted }]} />
+        <View style={[styles.thumb, { borderRadius: t.radius.sm, backgroundColor: t.muted }]} />
       ) : first ? (
-        <Image source={first} style={styles.thumb} contentFit="cover" accessible={false} />
+        <Image source={first} style={[styles.thumb, { borderRadius: t.radius.sm }]} contentFit="cover" accessible={false} />
       ) : (
-        <View style={[styles.thumb, styles.thumbQuote, { backgroundColor: t.muted }]}>
+        <View style={[styles.thumb, { borderRadius: t.radius.sm }, styles.thumbQuote, { backgroundColor: t.muted }]}>
           <Ionicons name="chatbubble-ellipses-outline" size={icon.lg} color={t.mutedForeground} />
         </View>
       )}
       <View style={styles.previewText}>
-        <Text style={[font.label, { color: t.foreground }]} numberOfLines={1}>
+        <Text style={[t.font.label, { color: t.foreground }]} numberOfLines={1}>
           {loading ? '讀取中…' : post.author ? `@${post.author}` : 'Threads 貼文'}
         </Text>
         {loading ? (
           <View style={[styles.skeletonLine, { backgroundColor: t.field }]} />
         ) : (
-          <Text style={[font.meta, { color: t.mutedForeground }]} numberOfLines={2}>
+          <Text style={[t.font.meta, { color: t.mutedForeground }]} numberOfLines={2}>
             {post.caption}
           </Text>
         )}
@@ -262,7 +262,7 @@ export function SaveSheet({
               style={styles.switchRow}
             >
               <Ionicons name="download-outline" size={icon.md} color={t.foreground} />
-              <Text style={[font.body, { color: t.foreground, flex: 1 }]}>同時下載到相簿</Text>
+              <Text style={[t.font.body, { color: t.foreground, flex: 1 }]}>同時下載到相簿</Text>
               <Switch
                 value={downloadToo}
                 onValueChange={onDownloadToo}
@@ -296,7 +296,7 @@ export function SaveSheet({
             onMore={onExpand}
           />
         )}
-        {!compact && <Text style={[font.headline, { color: t.foreground }]}>{isNew ? '加上標籤' : '標籤'}</Text>}
+        {!compact && <Text style={[t.font.headline, { color: t.foreground }]}>{isNew ? '加上標籤' : '標籤'}</Text>}
         {visible && !compact && (
           <TagPicker
             index={index}
@@ -308,7 +308,7 @@ export function SaveSheet({
           />
         )}
         {isNew && !compact && selected.length === 0 && (
-          <Text style={[font.meta, { color: t.mutedForeground }]}>不選也可以，會先放在「未分類」。</Text>
+          <Text style={[t.font.meta, { color: t.mutedForeground }]}>不選也可以，會先放在「未分類」。</Text>
         )}
       </ScrollView>
     </Sheet>
@@ -326,19 +326,19 @@ const styles = StyleSheet.create({
   reason: { flex: 1 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
   childRow: { borderLeftWidth: 2, paddingLeft: space.sm, marginLeft: space.xs, marginTop: space.xs },
-  preview: { flexDirection: 'row', gap: space.md, padding: space.md, borderRadius: radius.sm, borderWidth: StyleSheet.hairlineWidth * 2, alignItems: 'center' },
-  thumb: { width: 56, height: 56, borderRadius: radius.sm },
+  preview: { flexDirection: 'row', gap: space.md, padding: space.md, borderWidth: StyleSheet.hairlineWidth * 2, alignItems: 'center' },
+  thumb: { width: 56, height: 56, },
   thumbQuote: { alignItems: 'center', justifyContent: 'center' },
   // Room for the author + two caption lines from the start, so the preview
   // doesn't grow (and move the picker) when the post finishes loading.
   previewText: { flex: 1, gap: 2, minHeight: 58, justifyContent: 'center' },
   skeletonLine: { height: 12, borderRadius: 6, width: '80%', marginTop: 4 },
-  form: { gap: space.sm, padding: space.md, borderRadius: radius.md, borderWidth: 1 },
-  input: { minHeight: TOUCH, borderRadius: radius.sm, borderWidth: 1, paddingHorizontal: space.md },
+  form: { gap: space.sm, padding: space.md, borderWidth: 1 },
+  input: { minHeight: TOUCH, borderWidth: 1, paddingHorizontal: space.md },
   error: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
   formActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: space.sm, marginTop: space.xs },
   textButton: { minHeight: TOUCH, justifyContent: 'center', paddingHorizontal: space.md },
-  addButton: { minHeight: TOUCH, justifyContent: 'center', paddingHorizontal: space.xl, borderRadius: radius.md },
+  addButton: { minHeight: TOUCH, justifyContent: 'center', paddingHorizontal: space.xl, },
   footer: { gap: space.md, paddingTop: space.sm },
   switchRow: { minHeight: TOUCH, flexDirection: 'row', alignItems: 'center', gap: space.md },
 });

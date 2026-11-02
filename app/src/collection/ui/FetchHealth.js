@@ -35,7 +35,7 @@ export function FetchHealth({ posts, onRetryAll, onLogin }) {
       accessibilityLabel={summary.kind === 'login' ? '登入 Threads' : `全部重試 ${summary.count} 篇`}
       style={({ pressed }) => [styles.action, !!copy.detail && styles.actionBelow, pressed && { opacity: 0.6 }]}
     >
-      <Text style={[font.label, { color: t.accent }]}>{copy.action}</Text>
+      <Text style={[t.font.label, { color: t.accent }]}>{copy.action}</Text>
     </Pressable>
   );
   // Short notices read as one line, 「3 篇讀取失敗 · 全部重試」; the longer
@@ -44,8 +44,8 @@ export function FetchHealth({ posts, onRetryAll, onLogin }) {
     <View style={[styles.strip, { borderColor: t.border }]} accessibilityLiveRegion="polite" testID="fetch-health">
       <Ionicons name={copy.icon} size={icon.md} color={t.danger} style={copy.detail && styles.iconTop} />
       <View style={styles.text}>
-        <Text style={[font.label, { color: t.foreground }]}>{copy.title}</Text>
-        {!!copy.detail && <Text style={[font.meta, { color: t.mutedForeground }]}>{copy.detail}</Text>}
+        <Text style={[t.font.label, { color: t.foreground }]}>{copy.title}</Text>
+        {!!copy.detail && <Text style={[t.font.meta, { color: t.mutedForeground }]}>{copy.detail}</Text>}
         {!!copy.detail && action}
       </View>
       {!copy.detail && action}

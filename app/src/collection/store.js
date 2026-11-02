@@ -16,6 +16,8 @@ import { useAutoBackup } from './autoBackup';
 import { deleteCover, saveCover } from './covers';
 import { usePostFetcher } from './fetcher';
 import { openRepo } from './openRepo';
+import { DEFAULT_THEME, normalizeThemeId } from './themes';
+import { ThemeProvider } from './tokens';
 
 const CollectionContext = createContext(null);
 
@@ -41,6 +43,7 @@ export function CollectionProvider({ children, onNotice }) {
   const [recent, setRecent] = useState([]);
   const [downloadToo, setDownloadTooState] = useState(false);
   const [quickSave, setQuickSaveState] = useState(true); // 分享時用快速面板 (default on)
+  const [theme, setThemeState] = useState(DEFAULT_THEME); // 設定 › 主題
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
@@ -120,6 +123,9 @@ export function CollectionProvider({ children, onNotice }) {
       const r = await openRepo();
       await r.init();
       repo.current = r;
+      // The theme first, before seeding and migration, so the first screen is drawn in it.
+      const th = normalizeThemeId(await r.getMeta('theme'));
+      if (alive) setThemeState(th);
       if (!(await r.getMeta('seeded'))) {
         let t = 0;
         for (const tag of DEFAULT_TAGS) {
@@ -233,6 +239,12 @@ export function CollectionProvider({ children, onNotice }) {
   const setQuickSave = useCallback(async (value) => {
     setQuickSaveState(value);
     await repo.current?.setMeta('quick_save', value ? '1' : '0');
+  }, []);
+
+  const setTheme = useCallback(async (id) => {
+    const value = normalizeThemeId(id);
+    setThemeState(value);
+    await repo.current?.setMeta('theme', value);
   }, []);
 
   const toggleFeatured = useCallback(
@@ -422,7 +434,13 @@ export function CollectionProvider({ children, onNotice }) {
       autoBackup],
   );
 
-  return <CollectionContext.Provider value={value}>{children}</CollectionContext.Provider>;
+  return (
+    <CollectionContext.Provider value={value}>
+      <ThemeProvider id={theme} onChange={setTheme}>
+        {children}
+      </ThemeProvider>
+    </CollectionContext.Provider>
+  );
 }
 
 export function useCollection() {

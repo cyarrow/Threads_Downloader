@@ -18,10 +18,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import { isLoggedInUrl } from '../../threads';
 import { imageSource } from '../media';
-import { TOUCH, elevation, font, icon, radius, space, useCollectionTheme } from '../tokens';
+import { TOUCH, elevation, icon, radius, space, useCollectionTheme } from '../tokens';
 import { IconButton, PrimaryButton, SecondaryButton, Sheet } from './base';
 import { QuickSaveSettingRow } from './QuickSave';
 import { BackupSettings } from './BackupSettings';
+import { ThemeSettingRow } from './theme/ThemeSetting';
 
 const LOGIN_URL = 'https://www.threads.com/login';
 
@@ -35,16 +36,16 @@ export function LoginSheet({ visible, onClose, onLoggedIn }) {
       <View style={[styles.page, { backgroundColor: t.card, paddingBottom: insets.bottom }]}>
         <View style={[styles.pageHeader, { borderBottomColor: t.border }]}>
           <Pressable onPress={onClose} accessibilityRole="button" style={styles.headerButton}>
-            <Text style={[font.body, { color: t.accent }]}>取消</Text>
+            <Text style={[t.font.body, { color: t.accent }]}>取消</Text>
           </Pressable>
-          <Text style={[font.title, { color: t.foreground }]} accessibilityRole="header">
+          <Text style={[t.font.title, { color: t.foreground }]} accessibilityRole="header">
             登入 Threads
           </Text>
           <View style={styles.headerButton} />
         </View>
         <View style={styles.note}>
           <Ionicons name="lock-closed-outline" size={14} color={t.mutedForeground} />
-          <Text style={[font.meta, { color: t.mutedForeground, flex: 1 }]}>
+          <Text style={[t.font.meta, { color: t.mutedForeground, flex: 1 }]}>
             登入只會保存在這支手機上，用來讀取你看得到的貼文。
           </Text>
         </View>
@@ -79,7 +80,7 @@ export function AddLinkSheet({ visible, onClose, onSubmit }) {
   return (
     <Sheet visible={visible} onClose={onClose} title="收藏貼文">
       <View style={styles.form}>
-        <Text nativeID="addLinkLabel" style={[font.label, { color: t.foreground }]}>貼文連結</Text>
+        <Text nativeID="addLinkLabel" style={[t.font.label, { color: t.foreground }]}>貼文連結</Text>
         <TextInput
           value={text}
           onChangeText={(v) => {
@@ -96,15 +97,15 @@ export function AddLinkSheet({ visible, onClose, onSubmit }) {
           placeholderTextColor={t.mutedForeground}
           accessibilityLabel="貼文連結"
           accessibilityLabelledBy="addLinkLabel"
-          style={[font.body, styles.input, { color: t.foreground, backgroundColor: t.field, borderColor: error ? t.danger : t.field }]}
+          style={[t.font.body, styles.input, { borderRadius: t.radius.md, color: t.foreground, backgroundColor: t.field, borderColor: error ? t.danger : t.field }]}
         />
         {error ? (
           <View style={styles.inline} accessibilityLiveRegion="polite">
             <Ionicons name="alert-circle" size={icon.sm} color={t.danger} />
-            <Text style={[font.meta, { color: t.danger }]}>{error}</Text>
+            <Text style={[t.font.meta, { color: t.danger }]}>{error}</Text>
           </View>
         ) : (
-          <Text style={[font.meta, { color: t.mutedForeground }]}>支援貼文連結與 Threads App 的分享連結</Text>
+          <Text style={[t.font.meta, { color: t.mutedForeground }]}>支援貼文連結與 Threads App 的分享連結</Text>
         )}
         <View style={styles.row}>
           <SecondaryButton
@@ -147,9 +148,9 @@ export function DownloadPickerSheet({ post, onConfirm, onCancel }) {
               accessibilityLabel={`第 ${i + 1} 項，${m.type === 'video' ? '影片' : '圖片'}`}
               style={{ width: size, height: size }}
             >
-              <Image source={imageSource(m.thumb || m.poster)} style={[styles.tile, { backgroundColor: t.muted }]} contentFit="cover" />
-              {!on && <View style={[styles.tile, styles.dim, { backgroundColor: t.background }]} />}
-              {on && <View style={[styles.tile, styles.ring, { borderColor: t.primary }]} />}
+              <Image source={imageSource(m.thumb || m.poster)} style={[styles.tile, { borderRadius: t.radius.sm, backgroundColor: t.muted }]} contentFit="cover" />
+              {!on && <View style={[styles.tile, { borderRadius: t.radius.sm }, styles.dim, { backgroundColor: t.background }]} />}
+              {on && <View style={[styles.tile, { borderRadius: t.radius.sm }, styles.ring, { borderColor: t.primary }]} />}
               {m.type === 'video' && (
                 <View style={[styles.tileBadge, { backgroundColor: t.badge }]}>
                   <Ionicons name="play" size={12} color={t.onBadge} />
@@ -168,7 +169,7 @@ export function DownloadPickerSheet({ post, onConfirm, onCancel }) {
           accessibilityRole="button"
           style={styles.textButton}
         >
-          <Text style={[font.label, { color: t.accent }]}>{all ? '全不選' : '全選'}</Text>
+          <Text style={[t.font.label, { color: t.accent }]}>{all ? '全不選' : '全選'}</Text>
         </Pressable>
         <View style={styles.flex}>
           <PrimaryButton
@@ -212,7 +213,7 @@ export function DownloadPill({ state, queued, onAction, onSkip }) {
         ) : (
           <Ionicons name="alert-circle" size={icon.md} color={t.background} />
         )}
-        <Text style={[font.label, { color: t.background, flexShrink: 1 }]} numberOfLines={1}>
+        <Text style={[t.font.label, { color: t.background, flexShrink: 1 }]} numberOfLines={1}>
           {label}
         </Text>
       </Pressable>
@@ -227,16 +228,16 @@ export function UpdateBanner({ release, onDownload, onDismiss }) {
   const t = useCollectionTheme();
   if (!release) return null;
   return (
-    <View style={[styles.banner, { backgroundColor: t.card, borderColor: t.border }]}>
+    <View style={[styles.banner, { borderRadius: t.radius.md, backgroundColor: t.card, borderColor: t.border }]}>
       <Ionicons name="arrow-up-circle" size={icon.lg} color={t.foreground} />
       <View style={styles.flex}>
-        <Text style={[font.label, { color: t.foreground }]}>有新版本</Text>
-        <Text style={[font.meta, { color: t.mutedForeground }]} numberOfLines={1}>
+        <Text style={[t.font.label, { color: t.foreground }]}>有新版本</Text>
+        <Text style={[t.font.meta, { color: t.mutedForeground }]} numberOfLines={1}>
           {release.name}
         </Text>
       </View>
       <Pressable onPress={onDownload} accessibilityRole="button" style={styles.textButton}>
-        <Text style={[font.label, { color: t.accent }]}>下載更新</Text>
+        <Text style={[t.font.label, { color: t.accent }]}>下載更新</Text>
       </Pressable>
       <IconButton name="close" label="稍後再說" color={t.mutedForeground} size={icon.md} onPress={onDismiss} />
     </View>
@@ -250,12 +251,12 @@ function SettingsRow({ iconName, label, value, onPress }) {
       onPress={onPress}
       disabled={!onPress}
       accessibilityRole={onPress ? 'button' : 'text'}
-      style={({ pressed }) => [styles.settingsRow, pressed && onPress && { backgroundColor: t.muted }]}
+      style={({ pressed }) => [styles.settingsRow, { borderRadius: t.radius.sm }, pressed && onPress && { backgroundColor: t.muted }]}
     >
       <Ionicons name={iconName} size={icon.lg} color={t.foreground} />
-      <Text style={[font.body, { color: t.foreground, flex: 1 }]}>{label}</Text>
+      <Text style={[t.font.body, { color: t.foreground, flex: 1 }]}>{label}</Text>
       {!!value && (
-        <Text style={[font.meta, { color: t.mutedForeground, flexShrink: 1, textAlign: 'right' }]}>{value}</Text>
+        <Text style={[t.font.meta, { color: t.mutedForeground, flexShrink: 1, textAlign: 'right' }]}>{value}</Text>
       )}
       {onPress && <Ionicons name="chevron-forward" size={icon.sm} color={t.mutedForeground} />}
     </Pressable>
@@ -267,6 +268,7 @@ export function SettingsSheet({ visible, onClose, onLogin, onTags, onExport, onI
     <Sheet visible={visible} onClose={onClose} title="設定">
       <ScrollView style={styles.pickerScroll} contentContainerStyle={styles.settings}>
         <SettingsRow iconName="pricetags-outline" label="標籤管理" onPress={onTags} />
+        <ThemeSettingRow />
         <QuickSaveSettingRow value={quickSave} onChange={onQuickSave} />
         <BackupSettings />
         <SettingsRow iconName="share-outline" label="匯出備份" value="換手機時用" onPress={onExport} />
@@ -275,7 +277,7 @@ export function SettingsSheet({ visible, onClose, onLogin, onTags, onExport, onI
         <SettingsRow iconName="cloud-download-outline" label="檢查更新" value={updateStatus} onPress={onCheckUpdate} />
         <SettingsRow iconName="albums-outline" label="收藏" value={stats} />
         <SettingsRow iconName="information-circle-outline" label="版本" value={version} />
-        <SettingsRow iconName="text-outline" label="字型" value="霞鶩文楷 TC · SIL OFL 1.1" />
+        <SettingsRow iconName="text-outline" label="字型" value="霞鶩文楷 TC、IBM Plex Mono · SIL OFL 1.1" />
       </ScrollView>
     </Sheet>
   );
@@ -296,12 +298,12 @@ const styles = StyleSheet.create({
   headerButton: { minHeight: TOUCH, minWidth: 64, paddingHorizontal: space.sm, justifyContent: 'center' },
   note: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: space.lg, paddingVertical: space.sm },
   form: { gap: space.sm, paddingBottom: space.sm },
-  input: { minHeight: TOUCH, borderRadius: radius.md, borderWidth: 1.5, paddingHorizontal: space.md },
+  input: { minHeight: TOUCH, borderWidth: 1.5, paddingHorizontal: space.md },
   inline: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
   row: { flexDirection: 'row', marginVertical: space.xs },
   pickerScroll: { flexGrow: 0 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs, paddingBottom: space.md },
-  tile: { ...StyleSheet.absoluteFillObject, borderRadius: radius.sm },
+  tile: { ...StyleSheet.absoluteFillObject, },
   dim: { opacity: 0.55 },
   ring: { borderWidth: 3 },
   tileBadge: { position: 'absolute', left: 6, bottom: 6, width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
@@ -324,9 +326,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: space.sm,
     borderWidth: 1,
-    borderRadius: radius.md,
     paddingLeft: space.md,
   },
   settings: { paddingBottom: space.md },
-  settingsRow: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: space.lg, paddingHorizontal: space.sm, borderRadius: radius.sm },
+  settingsRow: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: space.lg, paddingHorizontal: space.sm, },
 });

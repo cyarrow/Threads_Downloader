@@ -6,13 +6,14 @@ import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SETTLE_MS, lockPicks, postSettled, quickReasonText, rankQuickTags, slotCount } from '../quickSave';
 import { tagHue, tagLabel } from '../tagModel';
-import { TOUCH, font, icon, radius, space, tagColors, useCollectionTheme } from '../tokens';
+import { TOUCH, icon, space, useCollectionTheme } from '../tokens';
+import { TagMark } from './theme/TagMark';
 
 const ROW_HEIGHT = 64; // ≥ 56dp target; fits name + reason at default text size
 const RULE = StyleSheet.hairlineWidth * 2;
 
 // One full-width row of the outlined list. Fills with ink while pressed (and
-// once picked, when it also swaps the colour square for a ✓).
+// once picked, when it also swaps the tag marker for a ✓).
 function Row({ first, onPress, disabled, picked, a11y, children }) {
   const t = useCollectionTheme();
   return (
@@ -54,15 +55,15 @@ function TagRow({ pick, index, first, picked, disabled, onPress }) {
             {picked ? (
               <Ionicons name="checkmark" size={icon.md} color={t.background} />
             ) : (
-              <View style={[styles.square, { backgroundColor: tagColors(tagHue(pick.tag, index.byId), t.scheme, false).dot }]} />
+              <TagMark hue={tagHue(pick.tag, index.byId)} size="lg" />
             )}
           </View>
           <View style={styles.rowText}>
-            <Text style={[font.headline, { color: ink ? t.background : t.foreground }]} numberOfLines={1}>
+            <Text style={[t.font.headline, { color: ink ? t.background : t.foreground }]} numberOfLines={1}>
               {label}
             </Text>
             {!!reason && (
-              <Text style={[font.meta, { color: ink ? t.background : t.mutedForeground }]} numberOfLines={1}>
+              <Text style={[t.font.meta, { color: ink ? t.background : t.mutedForeground }]} numberOfLines={1}>
                 {reason}
               </Text>
             )}
@@ -78,11 +79,11 @@ function SkeletonRow({ first }) {
   return (
     <View style={[styles.row, !first && { borderTopWidth: RULE, borderTopColor: t.border }]}>
       <View style={styles.marker}>
-        <View style={[styles.square, { backgroundColor: t.field }]} />
+        <TagMark color={t.field} size="lg" />
       </View>
       <View style={styles.rowText}>
-        <View style={[styles.bar, { width: '45%', backgroundColor: t.field }]} />
-        <View style={[styles.bar, styles.barSmall, { width: '28%', backgroundColor: t.field }]} />
+        <View style={[styles.bar, { borderRadius: t.radius.xs, width: '45%', backgroundColor: t.field }]} />
+        <View style={[styles.bar, { borderRadius: t.radius.xs }, styles.barSmall, { width: '28%', backgroundColor: t.field }]} />
       </View>
     </View>
   );
@@ -121,12 +122,12 @@ export function QuickPanel({ post, index, suggestions, recentIds, onPick, onMore
   return (
     <View style={styles.wrap}>
       <View style={styles.heading}>
-        <Text style={[font.headline, styles.flex, { color: t.foreground }]} accessibilityRole="header">
+        <Text style={[t.font.headline, styles.flex, { color: t.foreground }]} accessibilityRole="header">
           加上標籤
         </Text>
-        <Text style={[font.meta, { color: t.mutedForeground }]}>點一下就完成</Text>
+        <Text style={[t.font.meta, { color: t.mutedForeground }]}>點一下就完成</Text>
       </View>
-      <View style={[styles.list, { borderColor: t.outline }]}>
+      <View style={[styles.list, { borderRadius: t.radius.sm, borderColor: t.outline }]}>
         {picks ? (
           picks.map((p, i) => (
             <TagRow
@@ -157,7 +158,7 @@ export function QuickPanel({ post, index, suggestions, recentIds, onPick, onMore
               <View style={styles.marker}>
                 <Ionicons name="pricetags-outline" size={icon.md} color={ink ? t.background : t.foreground} />
               </View>
-              <Text style={[font.body, styles.flex, { color: ink ? t.background : t.foreground }]}>其他標籤…</Text>
+              <Text style={[t.font.body, styles.flex, { color: ink ? t.background : t.foreground }]}>其他標籤…</Text>
               <Ionicons name="chevron-down" size={icon.sm} color={ink ? t.background : t.mutedForeground} />
             </>
           )}
@@ -176,7 +177,7 @@ export function UnsortedButton({ onPress }) {
       onPress={onPress}
       accessibilityRole="button"
       style={({ pressed }) => [
-        styles.unsorted,
+        styles.unsorted, { borderRadius: t.radius.md },
         { borderColor: t.foreground },
         pressed && { backgroundColor: t.foreground },
       ]}
@@ -184,7 +185,7 @@ export function UnsortedButton({ onPress }) {
       {({ pressed }) => (
         <>
           <Ionicons name="file-tray-outline" size={icon.md} color={pressed ? t.background : t.foreground} />
-          <Text style={[font.headline, { color: pressed ? t.background : t.foreground }]}>先存到未分類</Text>
+          <Text style={[t.font.headline, { color: pressed ? t.background : t.foreground }]}>先存到未分類</Text>
         </>
       )}
     </Pressable>
@@ -203,12 +204,12 @@ export function QuickSaveSettingRow({ value, onChange }) {
       aria-checked={!!value} // react-native-web reads only the aria-* form
       accessibilityLabel="分享時用快速面板"
       accessibilityHint="從 Threads 分享進來時，先列出最可能的 3 個標籤，點一下就完成"
-      style={({ pressed }) => [styles.settingRow, pressed && { backgroundColor: t.muted }]}
+      style={({ pressed }) => [styles.settingRow, { borderRadius: t.radius.sm }, pressed && { backgroundColor: t.muted }]}
     >
       <Ionicons name="flash-outline" size={icon.lg} color={t.foreground} />
       <View style={styles.flex}>
-        <Text style={[font.body, { color: t.foreground }]}>分享時用快速面板</Text>
-        <Text style={[font.meta, { color: t.mutedForeground }]}>列出 3 個最可能的標籤，點一下就完成</Text>
+        <Text style={[t.font.body, { color: t.foreground }]}>分享時用快速面板</Text>
+        <Text style={[t.font.meta, { color: t.mutedForeground }]}>列出 3 個最可能的標籤，點一下就完成</Text>
       </View>
       <Switch
         value={!!value}
@@ -227,7 +228,7 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   wrap: { gap: space.sm },
   heading: { flexDirection: 'row', alignItems: 'baseline', gap: space.sm },
-  list: { borderWidth: RULE, borderRadius: radius.sm, overflow: 'hidden' },
+  list: { borderWidth: RULE, overflow: 'hidden' },
   row: {
     minHeight: ROW_HEIGHT,
     flexDirection: 'row',
@@ -237,14 +238,12 @@ const styles = StyleSheet.create({
     paddingVertical: space.sm,
   },
   marker: { width: icon.md, alignItems: 'center' },
-  square: { width: 12, height: 12, borderRadius: 1 },
   rowText: { flex: 1, gap: 2 },
-  bar: { height: 14, borderRadius: radius.xs },
+  bar: { height: 14, },
   barSmall: { height: 10, marginTop: 4 },
   unsorted: {
     minHeight: 56,
     borderWidth: 1,
-    borderRadius: radius.md,
     flexDirection: 'row',
     gap: space.sm,
     alignItems: 'center',
@@ -258,7 +257,6 @@ const styles = StyleSheet.create({
     gap: space.lg,
     paddingHorizontal: space.sm,
     paddingVertical: space.sm,
-    borderRadius: radius.sm,
     minWidth: TOUCH,
   },
 });

@@ -33,6 +33,8 @@ const SAMPLES = {
   MEME: { caption: '週一早上的我 vs 週五下班的我', media: [still(img.meme, 1)] },
   IDOL: { caption: '應援手幅做好了！這次用了漸層燙金', media: [still(img.idol, 1.25)] },
   SEA: { caption: '新歌 MV 拍攝花絮釋出', media: [still(img.sea, 0.5625, 'video')] },
+  // Two videos in one post: checks that starting one pauses the other.
+  DUO: { caption: '兩段直拍：開場和安可', media: [still(img.stage, 1, 'video'), still(img.sea, 1, 'video')] },
 };
 
 export function usePostFetcher() {

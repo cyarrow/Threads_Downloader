@@ -25,6 +25,29 @@ export function backupFileName(now = Date.now()) {
   return `threads-collection-${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}.json`;
 }
 
+// Auto backups can land more than once a day (立即備份), so they carry the time too.
+export function autoBackupFileName(now = Date.now()) {
+  const d = new Date(now);
+  const pad = (n) => String(n).padStart(2, '0');
+  const time = `${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+  return backupFileName(now).replace(/\.json$/, `-${time}.json`);
+}
+
+// Our backup files, as named by backupFileName / autoBackupFileName — including the
+// " (1)" a document provider adds when a name is taken. Nothing else is ever pruned.
+const BACKUP_NAME_RE = /^threads-collection-(\d{8})(?:-(\d{6}))?(?: \((\d+)\))?\.json$/;
+
+export function isBackupFileName(name) {
+  return typeof name === 'string' && BACKUP_NAME_RE.test(name);
+}
+
+// Sortable key (newer sorts later) for one of our backup file names, or null.
+export function backupNameKey(name) {
+  const m = typeof name === 'string' && name.match(BACKUP_NAME_RE);
+  if (!m) return null;
+  return `${m[1]}${m[2] || '000000'}${String(m[3] || 0).padStart(4, '0')}`;
+}
+
 // Throws an Error with a user-facing message when the file isn't a valid backup.
 export function parseBackup(text) {
   let data;

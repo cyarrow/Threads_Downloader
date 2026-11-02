@@ -24,6 +24,7 @@ import { CardWall } from './src/collection/ui/CardWall';
 import { CardMenu, Toast } from './src/collection/ui/Overlays';
 import { PostDetail } from './src/collection/ui/PostDetail';
 import { SaveSheet } from './src/collection/ui/SaveSheet';
+import { BackupNote } from './src/collection/ui/BackupNote';
 import {
   AddLinkSheet,
   DownloadPickerSheet,
@@ -339,6 +340,7 @@ function Home({ notice }) {
         refreshing={refreshing}
         banner={
           <View style={styles.banners}>
+            <BackupNote onSetup={() => setSettingsOpen(true)} />
             <UpdateBanner
               release={update}
               onDownload={() => Linking.openURL(update.apkUrl)}

@@ -81,13 +81,20 @@ function MediaItem({ item, index, width, height, placeholder, playing, onPlay, o
   );
 }
 
-function MediaPager({ media, width, placeholder, onStale }) {
+// Also used by the 串流 tab (StreamPost). `active={false}` (the post scrolled out
+// of view) sends a playing page back to its poster, which releases the player.
+export function MediaPager({ media, width, placeholder, onStale, active = true }) {
   const t = useCollectionTheme();
   const [page, setPage] = useState(0);
   // The page whose video is playing (-1 = none). Held here, not per item, so only
   // the page on screen can have a player: FlatList keeps neighbouring pages
   // mounted, and a video swiped away would otherwise keep playing off-screen.
   const [playingIndex, setPlayingIndex] = useState(-1);
+  const [wasActive, setWasActive] = useState(active);
+  if (active !== wasActive) {
+    setWasActive(active);
+    if (!active) setPlayingIndex(-1);
+  }
   const list = useRef(null);
   const height = width * clamp(media[0].ratio || 1, 0.75, 1.25);
   const settle = (i) => {

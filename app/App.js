@@ -3,7 +3,7 @@ import { BackHandler, Linking, Platform, StyleSheet, ToastAndroid, View } from '
 import { StatusBar } from 'expo-status-bar';
 import * as Clipboard from 'expo-clipboard';
 import Constants from 'expo-constants';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { SafeAreaInsetsContext, SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import { useDownloader } from './src/useDownloader';
 import { useShareIntent } from './src/shareIntent';
@@ -13,15 +13,20 @@ import { checkForUpdate } from './src/updates';
 import { CollectionProvider, useCollection } from './src/collection/store';
 import { mergeTags } from './src/collection/collectionModel';
 import { useBrandFont } from './src/collection/fonts';
-import { filterPosts, indexTags, tagLabel } from './src/collection/tagModel';
+import { UNCATEGORIZED, filterPosts, indexTags, tagLabel, tagSummaries, untaggedCount } from './src/collection/tagModel';
+import { backTarget, visitTab } from './src/collection/navModel';
 import { useCollectionTheme } from './src/collection/tokens';
 import { pickBackup, shareBackup } from './src/collection/backupIO';
-import { pickRediscover, randomPicks } from './src/collection/rediscover';
+import { pickRediscover } from './src/collection/rediscover';
 import { suggestTags } from './src/collection/suggest';
-import { RediscoverCard, TagManager, Triage } from './src/collection/ui/Phase2';
+import { RediscoverCard, TagManager } from './src/collection/ui/Phase2';
 import { SecondaryButton } from './src/collection/ui/base';
 import { buzz } from './src/collection/ui/base';
 import { CardWall } from './src/collection/ui/CardWall';
+import { DeckScreen } from './src/collection/ui/DeckScreen';
+import { StreamScreen } from './src/collection/ui/StreamScreen';
+import { TAB_BAR_HEIGHT, TabBar } from './src/collection/ui/TabBar';
+import { TagBrowser, TagPageBar } from './src/collection/ui/TagBrowser';
 import { FetchHealth } from './src/collection/ui/FetchHealth';
 import { CardMenu, Toast } from './src/collection/ui/Overlays';
 import { PostDetail } from './src/collection/ui/PostDetail';
@@ -92,10 +97,19 @@ function Home({ notice }) {
   const [updateStatus, setUpdateStatus] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [tagsOpen, setTagsOpen] = useState(false);
-  const [triageOpen, setTriageOpen] = useState(false);
-  const [rediscoverRound, setRediscoverRound] = useState(0);
   const [rediscoverHidden, setRediscoverHidden] = useState(false);
-  const afterSheet = useRef(null); // e.g. triage moving to the next post
+  // Tabs: 翻翻 | 收藏 | 串流. A tab mounts on first visit and then stays mounted
+  // (hidden) so its scroll position, filter and deck survive switching.
+  const [tab, setTab] = useState('home');
+  const [visited, setVisited] = useState(['home']);
+  const [searching, setSearching] = useState(false);
+  const [browsing, setBrowsing] = useState(false); // 所有標籤 on the 收藏 tab
+  const [tagPage, setTagPage] = useState(null); // a 大標籤's page inside 所有標籤
+  const [tagChild, setTagChild] = useState(null); // 小標籤 chip on that page
+  const [deckFilter, setDeckFilter] = useState(null);
+  const [streamFilter, setStreamFilter] = useState(null);
+  const insets = useSafeAreaInsets();
+  const afterSheet = useRef(null); // the deck moving past a card once its tags are set
   const pendingDownloads = useRef(new Map()); // postId → { fromShare }
   const downloadAfterLogin = useRef(false);
   const hideToast = useCallback(() => setToast(null), []);
@@ -107,14 +121,39 @@ function Home({ notice }) {
     () => (sheetPost?.status === 'ready' ? suggestTags(sheetPost, c.posts, index) : []),
     [sheetPost, c.posts, index],
   );
-  const untagged = c.posts.filter((p) => !p.tagIds.length && p.status === 'ready').length;
+  const untagged = untaggedCount(c.posts);
+  // 「N 年前的今天」/「好久沒看」 stay on the wall; its 隨機翻翻 now opens the 翻翻 tab.
   const rediscover = useMemo(() => {
     if (rediscoverHidden || filter.length || appliedQuery.trim()) return null;
-    const now = Date.now();
-    if (rediscoverRound === 0) return pickRediscover(c.posts, now);
-    const posts = randomPicks(c.posts, now, 3, rediscoverRound);
-    return posts.length ? { title: '隨機翻翻', subtitle: '換一批舊收藏看看', posts } : null;
-  }, [c.posts, filter, appliedQuery, rediscoverRound, rediscoverHidden]);
+    return pickRediscover(c.posts, Date.now());
+  }, [c.posts, filter, appliedQuery, rediscoverHidden]);
+  const pageTag = browsing && tagPage ? index.byId[tagPage] : null;
+  const pagePosts = useMemo(
+    () => (pageTag ? filterPosts(c.posts, [tagChild || pageTag.id], appliedQuery, index) : []),
+    [pageTag, tagChild, c.posts, appliedQuery, index],
+  );
+  const summaries = useMemo(() => (browsing ? tagSummaries(c.posts, index) : []), [browsing, c.posts, index]);
+
+  const goTab = useCallback((next) => {
+    setTab(next);
+    setVisited((v) => visitTab(v, next));
+  }, []);
+  // 整理未分類 (wall banner, 所有標籤): the 翻翻 deck in its sorting mode.
+  const startTriage = () => {
+    setDeckFilter(UNCATEGORIZED);
+    goTab('deck');
+  };
+  // 搜尋 on 翻翻 / 串流 searches the whole collection on the 收藏 wall.
+  const searchFromTab = () => {
+    setBrowsing(false);
+    setTagPage(null);
+    setSearching(true);
+    goTab('home');
+  };
+  const setSearchOpen = (on) => {
+    if (!on) setQuery('');
+    setSearching(on);
+  };
   const { buildNumber, releasesRepo } = Constants.expoConfig?.extra ?? {};
   const version = `${Constants.expoConfig?.version ?? ''} (build ${buildNumber ?? '-'})`;
 
@@ -136,6 +175,9 @@ function Home({ notice }) {
       return 'invalid';
     }
     const existing = res.status === 'exists' && c.posts.find((p) => p.id === res.id);
+    // This sheet replaces any open one (e.g. a share arriving while the deck's
+    // tag sheet is up): the deck must not treat this post's tags as its card's.
+    afterSheet.current = null;
     setSheetTags(existing ? existing.tagIds : []);
     // Shares open the compact 快速面板 unless the user turned it off in settings.
     setSheet({ mode: existing ? 'edit' : 'new', postId: res.id, fromShare, quick: fromShare && !existing && c.quickSave });
@@ -198,7 +240,7 @@ function Home({ notice }) {
   // `tags`: a quick-panel tap passes its one tag instead of the picker's selection.
   const finishSheet = async ({ closed = false, tags = sheetTags } = {}) => {
     if (!sheet) return;
-    const { postId, mode, fromShare } = sheet;
+    const { postId, mode, fromShare, quiet } = sheet;
     const id = c.resolveId(postId);
     setSheet(null);
     // A shared link that turned out to be an already-saved card: add to its tags, don't replace them.
@@ -213,13 +255,15 @@ function Home({ notice }) {
         : (names.length ? `已收藏到 ${names.join('、')}` : '已收藏到「未分類」') + (willDownload ? '，下載中' : '');
     if (!closed) buzz('success');
     if (afterSheet.current) {
-      afterSheet.current();
+      afterSheet.current(tags);
       afterSheet.current = null;
     }
     if (fromShare) {
       systemToast(message);
       if (!willDownload) leaveToThreads();
-    } else {
+    } else if (!quiet) {
+      // The deck reports its own result in its status line, where the toast
+      // would cover its buttons.
       setToast({ message });
     }
   };
@@ -291,12 +335,25 @@ function Home({ notice }) {
   // so its scroll position and filters survive.
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (sheet) return finishSheet({ closed: true }), true;
-      if (addOpen) return setAddOpen(false), true;
-      if (settingsOpen) return setSettingsOpen(false), true;
-      if (menuPost) return setMenuPost(null), true;
-      if (detailId) return setDetailId(null), true;
-      return false;
+      const target = backTarget({
+        sheet: !!sheet,
+        addOpen,
+        settingsOpen,
+        menuOpen: !!menuPost,
+        detailOpen: !!detailId,
+        tab,
+        tagPage: !!pageTag,
+        browsing,
+      });
+      if (target === 'sheet') finishSheet({ closed: true });
+      else if (target === 'add') setAddOpen(false);
+      else if (target === 'settings') setSettingsOpen(false);
+      else if (target === 'menu') setMenuPost(null);
+      else if (target === 'detail') setDetailId(null);
+      else if (target === 'home') goTab('home');
+      else if (target === 'tagPage') setTagPage(null);
+      else if (target === 'browser') setBrowsing(false);
+      return target !== null;
     });
     return () => sub.remove();
   });
@@ -324,53 +381,149 @@ function Home({ notice }) {
   };
 
   const tagCount = c.tags.length;
+  const headerActions = { onAdd: add, onSearch: searchFromTab, searching: false, onSettings: () => setSettingsOpen(true) };
+  const openPost = (p) => setDetailId(p.id);
+  const openMenu = (p) => {
+    buzz('light');
+    setMenuPost(p);
+  };
+  // Screens above the tab bar get no bottom inset (the bar takes it), so lists
+  // and the download pill end above the bar; the toast is lifted over it unless
+  // the detail page (which covers the bar) is open.
+  const contentInsets = { ...insets, bottom: 0 };
+  const toastInsets = { ...insets, bottom: insets.bottom + (detail ? 0 : TAB_BAR_HEIGHT) };
   return (
     <View style={[styles.root, { backgroundColor: t.background }]}>
-      <CardWall
-        posts={visible}
-        total={c.posts.length}
-        index={index}
-        filter={filter}
-        onFilter={setFilter}
-        query={query}
-        onQuery={setQuery}
-        onOpen={(p) => setDetailId(p.id)}
-        onMenu={(p) => {
-          buzz('light');
-          setMenuPost(p);
-        }}
-        onRetry={(p) => c.retry(p.id)}
-        onAdd={add}
-        onSettings={() => setSettingsOpen(true)}
-        onRefresh={pullRefresh}
-        refreshing={refreshing}
-        banner={
-          <View style={styles.banners}>
-            <FetchHealth posts={c.posts} onRetryAll={c.retryAllFailed} onLogin={() => setLoginOpen(true)} />
-            <BackupNote onSetup={() => setSettingsOpen(true)} />
-            <UpdateBanner
-              release={update}
-              onDownload={() => Linking.openURL(update.apkUrl)}
-              onDismiss={() => setUpdate(null)}
-            />
-            <RediscoverCard
-              pick={rediscover}
-              onOpen={(p) => setDetailId(p.id)}
-              onShuffle={() => setRediscoverRound((r) => r + 1)}
-              onDismiss={() => setRediscoverHidden(true)}
-            />
-            {untagged > 0 && !filter.length && (
-              <View style={styles.triageEntry}>
-                <SecondaryButton
-                  title={`整理未分類（${untagged} 篇）`}
-                  iconName="albums-outline"
-                  onPress={() => setTriageOpen(true)}
+      <SafeAreaInsetsContext.Provider value={contentInsets}>
+        <View style={styles.content}>
+          <Pane hidden={tab !== 'home'}>
+            <Pane hidden={browsing}>
+              <CardWall
+                posts={visible}
+                total={c.posts.length}
+                index={index}
+                filter={filter}
+                onFilter={setFilter}
+                query={query}
+                onQuery={setQuery}
+                searching={searching}
+                onSearching={setSearchOpen}
+                onOpen={openPost}
+                onMenu={openMenu}
+                onRetry={(p) => c.retry(p.id)}
+                onAdd={add}
+                onSettings={() => setSettingsOpen(true)}
+                onAllTags={() => setBrowsing(true)}
+                onRefresh={pullRefresh}
+                refreshing={refreshing}
+                banner={
+                  <View style={styles.banners}>
+                    <FetchHealth posts={c.posts} onRetryAll={c.retryAllFailed} onLogin={() => setLoginOpen(true)} />
+                    <BackupNote onSetup={() => setSettingsOpen(true)} />
+                    <UpdateBanner
+                      release={update}
+                      onDownload={() => Linking.openURL(update.apkUrl)}
+                      onDismiss={() => setUpdate(null)}
+                    />
+                    <RediscoverCard
+                      pick={rediscover}
+                      onOpen={openPost}
+                      onShuffle={() => {
+                        setDeckFilter(null);
+                        goTab('deck');
+                      }}
+                      onDismiss={() => setRediscoverHidden(true)}
+                    />
+                    {untagged > 0 && !filter.length && (
+                      <View style={styles.triageEntry}>
+                        <SecondaryButton title={`整理未分類（${untagged} 篇）`} iconName="albums-outline" onPress={startTriage} />
+                      </View>
+                    )}
+                  </View>
+                }
+              />
+            </Pane>
+            {browsing &&
+              (pageTag ? (
+                <CardWall
+                  key={pageTag.id}
+                  posts={pagePosts}
+                  index={index}
+                  title={pageTag.name}
+                  kicker={null}
+                  onBack={() => setTagPage(null)}
+                  filter={[pageTag.id]}
+                  onFilter={(ids) => !ids.length && setTagChild(null)}
+                  query={query}
+                  onQuery={setQuery}
+                  searching={searching}
+                  onSearching={setSearchOpen}
+                  onOpen={openPost}
+                  onMenu={openMenu}
+                  onRetry={(p) => c.retry(p.id)}
+                  onAdd={add}
+                  onSettings={() => setSettingsOpen(true)}
+                  filterBar={
+                    <TagPageBar
+                      tag={pageTag}
+                      kids={index.children[pageTag.id] || []}
+                      count={pagePosts.length}
+                      child={tagChild}
+                      onChild={setTagChild}
+                      onStream={() => {
+                        setStreamFilter(pageTag.id);
+                        goTab('stream');
+                      }}
+                    />
+                  }
                 />
-              </View>
-            )}
-          </View>
-        }
-        overlay={
+              ) : (
+                <TagBrowser
+                  summaries={summaries}
+                  untagged={untagged}
+                  onBack={() => setBrowsing(false)}
+                  onOpenTag={(id) => {
+                    setTagChild(null);
+                    setTagPage(id);
+                  }}
+                  onTriage={startTriage}
+                  onEdit={() => setTagsOpen(true)}
+                />
+              ))}
+          </Pane>
+          {visited.includes('deck') && (
+            <Pane hidden={tab !== 'deck'}>
+              <DeckScreen
+                posts={c.posts}
+                index={index}
+                filter={deckFilter}
+                onFilter={setDeckFilter}
+                onOpen={openPost}
+                onPick={(post, done) => {
+                  afterSheet.current = done;
+                  setSheetTags(post.tagIds);
+                  setSheet({ mode: 'edit', postId: post.id, fromShare: false, quiet: true });
+                }}
+                onFeature={c.setFeatured}
+                onSetTags={c.setPostTags}
+                actions={headerActions}
+              />
+            </Pane>
+          )}
+          {visited.includes('stream') && (
+            <Pane hidden={tab !== 'stream'}>
+              <StreamScreen
+                posts={c.posts}
+                index={index}
+                filter={streamFilter}
+                onFilter={setStreamFilter}
+                active={tab === 'stream' && !detail}
+                actions={headerActions}
+                onAction={onAction}
+                onStale={(p) => c.refresh(p.id)}
+              />
+            </Pane>
+          )}
           <DownloadPill
             state={dl.state}
             queued={dl.queued}
@@ -382,8 +535,9 @@ function Home({ notice }) {
             }}
             onSkip={dl.skip}
           />
-        }
-      />
+        </View>
+      </SafeAreaInsetsContext.Provider>
+      <TabBar tab={tab} onChange={goTab} />
       {detail && (
         <View style={StyleSheet.absoluteFill}>
           <PostDetail
@@ -468,28 +622,40 @@ function Home({ notice }) {
           onDelete={c.deleteTag}
         />
       )}
-      {triageOpen && (
-        <Triage
-          posts={c.posts}
-          index={index}
-          onClose={() => setTriageOpen(false)}
-          onTag={(id, tagIds) => c.setPostTags(id, tagIds)}
-          onMoreTags={(post, advance) => {
-            afterSheet.current = advance;
-            setSheetTags(post.tagIds);
-            setSheet({ mode: 'edit', postId: post.id, fromShare: false });
-          }}
-        />
-      )}
       <LoginSheet visible={loginOpen} onClose={() => setLoginOpen(false)} onLoggedIn={onLoggedIn} />
-      <Toast toast={toast} onUndo={() => { c.undoRemove(); setToast(null); }} onHide={hideToast} />
+      <SafeAreaInsetsContext.Provider value={toastInsets}>
+        <Toast toast={toast} onUndo={() => { c.undoRemove(); setToast(null); }} onHide={hideToast} />
+      </SafeAreaInsetsContext.Provider>
       <StatusBar style={t.scheme === 'dark' ? 'light' : 'dark'} />
+    </View>
+  );
+}
+
+// A tab (or a page inside one) kept mounted while hidden, so its scroll
+// position and state survive. Web drops it from layout; native moves it off
+// screen instead (display: none can make native lists lose their scroll
+// offset). Hidden panes are removed from the accessibility tree either way.
+function Pane({ hidden, children }) {
+  return (
+    <View
+      style={hidden ? styles.hidden : styles.fill}
+      pointerEvents={hidden ? 'none' : 'auto'}
+      importantForAccessibility={hidden ? 'no-hide-descendants' : 'auto'}
+      accessibilityElementsHidden={hidden}
+    >
+      {children}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
+  content: { flex: 1 },
+  fill: { flex: 1 },
+  hidden: Platform.select({
+    web: { display: 'none' },
+    default: { position: 'absolute', top: 100000, left: 0, width: '100%', height: '100%', opacity: 0 },
+  }),
   hiddenWeb: { position: 'absolute', width: 1, height: 1, opacity: 0 },
   banners: { gap: 12 },
   triageEntry: { flexDirection: 'row' },

@@ -60,3 +60,28 @@ export function foldChips(items, selected, max, expanded) {
   const pinned = items.slice(max).filter((t) => selected.includes(t.id));
   return { visible: [...head, ...pinned], hidden: items.length - max - pinned.length };
 }
+
+// 所有標籤 covers: one entry per 大標籤, in tag order. `count` includes posts
+// tagged with any of its 小標籤; `cover` is the newest post with a picture and
+// `latest` the newest post at all (a text-only family shows its words instead).
+// Loading / failed cards are left out: they have nothing to show yet.
+export function tagSummaries(posts, index) {
+  const ready = posts.filter((p) => p.status !== 'loading' && p.status !== 'failed');
+  return index.parents.map((tag) => {
+    const kids = index.children[tag.id] || [];
+    const family = new Set([tag.id, ...kids.map((k) => k.id)]);
+    const own = ready.filter((p) => p.tagIds.some((id) => family.has(id))).sort((a, b) => b.savedAt - a.savedAt);
+    return {
+      tag,
+      count: own.length,
+      cover: own.find((p) => p.media.length > 0 || !!p.cover) || null,
+      latest: own[0] || null,
+      kids,
+    };
+  });
+}
+
+// Readable posts with no tag (the 未分類 pile the deck sorts).
+export function untaggedCount(posts) {
+  return posts.filter((p) => !p.tagIds.length && p.status === 'ready').length;
+}

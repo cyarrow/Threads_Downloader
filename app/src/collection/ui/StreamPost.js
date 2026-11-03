@@ -4,12 +4,15 @@ import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { cardStill, imageSource } from '../media';
 import { tagHue, tagLabel } from '../tagModel';
-import { TOUCH, font, icon, radius, space, tagColors, tagTint, useCollectionTheme } from '../tokens';
+import { TOUCH, icon, space, useCollectionTheme } from '../tokens';
 import { TagChip } from './base';
 import { MediaPager } from './PostDetail';
+import { PRINT_INSET, PhotoBack, Print, SprocketRule, TagKicker } from './theme';
 
 const GUTTER = 20;
 const RULE = StyleSheet.hairlineWidth * 2;
+// 底片: media sit as a print with this much page on each side (as on the detail page).
+const PRINT_MARGIN = 14;
 
 function shortDate(ts) {
   const d = new Date(ts);
@@ -28,24 +31,30 @@ function Action({ iconName, label, onPress }) {
       style={({ pressed }) => [styles.action, { opacity: pressed ? 0.6 : 1 }]}
     >
       <Ionicons name={iconName} size={icon.md} color={t.foreground} />
-      <Text style={[font.label, { color: t.foreground }]}>{label}</Text>
+      <Text style={[t.font.label, { color: t.foreground }]}>{label}</Text>
     </Pressable>
   );
 }
 
-// One post in the 串流 tab, read like a Threads post in the 雜誌 style: kicker,
-// byline, the whole caption (never truncated), then the media full width — the
-// same pager as the detail page (swipe, page marks, counter, tap-to-play with
-// one video at a time app-wide) — its tags (tap → filter the feed) and actions.
+// One post in the 串流 tab, read like a Threads post: kicker, byline, the whole
+// caption (never truncated), then the media — the same pager as the detail page
+// (swipe, page marks, counter, tap-to-play with one video at a time app-wide) —
+// its tags (tap → filter the feed) and actions.
+// 雜誌: media full width, a hairline between posts, text-only posts on the
+// tag-tinted page. 底片: a sprocket strip opens each post like a frame on a roll,
+// media are a print (paper edge, savedAt imprint) inset from the screen edge,
+// text-only posts are the back of a photo.
 // `active`: false once the post scrolls out of view, which stops its video.
 function StreamPostImpl({ post, index, width, active, onTag, onAction, onStale }) {
   const t = useCollectionTheme();
   const staleOnce = useRef(false);
   const tags = post.tagIds.map((id) => index.byId[id]).filter(Boolean);
   const hue = tags[0] ? tagHue(tags[0], index.byId) : 'slate';
-  const hueColors = tagColors(hue, t.scheme, false);
   const still = cardStill(post);
   const deleted = post.status === 'sourceDeleted';
+  const film = t.printFrame;
+  // 底片 insets the photo as a print (like PostDetail); 雜誌 runs it edge to edge.
+  const mediaWidth = film ? width - PRINT_MARGIN * 2 - PRINT_INSET : width;
   const act = (kind) => () => onAction(kind, post);
   const reportStale = () => {
     if (staleOnce.current) return;
@@ -54,47 +63,54 @@ function StreamPostImpl({ post, index, width, active, onTag, onAction, onStale }
   };
 
   return (
-    <View style={[styles.post, { borderBottomColor: t.border }]}>
+    <View style={[styles.post, film ? styles.postFilm : { borderBottomColor: t.border }]}>
+      {film && <SprocketRule height={12} pitch={16} style={styles.strip} />}
       <View style={styles.text}>
-        <View style={styles.kicker}>
-          {post.featured && <Text style={[font.kicker, { color: t.accent }]}>精選</Text>}
-          <View style={[styles.square, { backgroundColor: hueColors.dot }]} />
-          <Text style={[font.kicker, styles.flex, { color: tags[0] ? hueColors.text : t.mutedForeground }]} numberOfLines={1}>
-            {tags[0] ? tagLabel(tags[0], index.byId) : '未分類'}
-          </Text>
-        </View>
+        <TagKicker hue={hue} featured={post.featured} untagged={!tags[0]} label={tags[0] ? tagLabel(tags[0], index.byId) : '未分類'} />
         <View>
-          <Text style={[font.headline, { color: t.foreground }]} numberOfLines={1}>
-            <Text style={[font.label, { color: t.mutedForeground }]}>文 ／ </Text>@{post.author}
+          <Text style={[t.font.headline, { color: t.foreground }]} numberOfLines={1}>
+            <Text style={[t.font.label, { color: t.mutedForeground }]}>文 ／ </Text>@{post.author}
           </Text>
-          <Text style={[font.caption, styles.dateline, { color: t.mutedForeground }]}>
+          <Text style={[t.font.caption, styles.dateline, { color: t.mutedForeground }]}>
             收藏於 {shortDate(post.savedAt)}
             {deleted ? ' · 原貼文已刪除' : ''}
           </Text>
         </View>
         {!!post.caption &&
           (post.media.length || still ? (
-            <Text style={[font.content, { color: t.foreground }]} selectable>
+            <Text style={[t.font.content, { color: t.foreground }]} selectable>
               {post.caption}
             </Text>
           ) : (
-            // Text-only post: the same tag-tinted page as its card and detail page.
-            <View style={[styles.page, { backgroundColor: tagTint(hue, t.scheme, t.card) }]}>
-              <Text style={[font.quote, styles.mark, { color: hueColors.dot }]} importantForAccessibility="no" accessibilityElementsHidden>
-                「
-              </Text>
-              <Text style={[font.quote, { color: t.foreground }]} selectable>
-                {post.caption}
-              </Text>
-            </View>
+            // Text-only post: the same paper as its card and detail page.
+            <PhotoBack hue={hue} text={post.caption} savedAt={post.savedAt} large selectable />
           ))}
       </View>
 
       {post.media.length > 0 ? (
         // Keyed by post so a recycled cell never inherits another post's page or player.
-        <MediaPager key={post.id} media={post.media} width={width} placeholder={imageSource(post.cover)} onStale={reportStale} active={active} />
+        <MediaPager
+          key={post.id}
+          media={post.media}
+          width={mediaWidth}
+          placeholder={imageSource(post.cover)}
+          onStale={reportStale}
+          active={active}
+          savedAt={post.savedAt}
+        />
       ) : (
-        still && (
+        still &&
+        (film ? (
+          <Print savedAt={post.savedAt} style={[styles.print, { width: mediaWidth + PRINT_INSET }]}>
+            <Image
+              source={still}
+              recyclingKey={post.id}
+              style={{ width: mediaWidth, height: mediaWidth, backgroundColor: t.muted }}
+              contentFit="contain"
+              accessibilityLabel="封面"
+            />
+          </Print>
+        ) : (
           <Image
             source={still}
             recyclingKey={post.id}
@@ -102,7 +118,7 @@ function StreamPostImpl({ post, index, width, active, onTag, onAction, onStale }
             contentFit="contain"
             accessibilityLabel="封面"
           />
-        )
+        ))
       )}
 
       <View style={styles.text}>
@@ -138,11 +154,10 @@ const styles = StyleSheet.create({
   post: { paddingVertical: space.xl, gap: space.md, borderBottomWidth: RULE },
   text: { paddingHorizontal: GUTTER, gap: space.md },
   flex: { flex: 1 },
-  kicker: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  square: { width: 8, height: 8, borderRadius: 1 },
+  postFilm: { borderBottomWidth: 0, paddingTop: 0 },
+  strip: { marginBottom: space.xs },
+  print: { marginHorizontal: PRINT_MARGIN, alignSelf: 'flex-start' },
   dateline: { letterSpacing: 1, marginTop: 2 },
-  page: { borderRadius: radius.xs, paddingHorizontal: space.lg, paddingBottom: space.lg },
-  mark: { fontSize: 44, lineHeight: 52, marginLeft: -16, marginBottom: -12 },
   tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
   actions: { flexDirection: 'row', flexWrap: 'wrap', columnGap: space.lg, marginLeft: -space.sm, marginTop: -space.xs },
   action: { minHeight: TOUCH, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: space.sm },

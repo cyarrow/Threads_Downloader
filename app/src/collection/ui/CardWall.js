@@ -3,12 +3,13 @@ import { StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-na
 import { FlashList } from '@shopify/flash-list';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { TOUCH, font, icon, radius, space, useCollectionTheme } from '../tokens';
+import { TOUCH, icon, space, useCollectionTheme } from '../tokens';
 import { HeaderActions } from './HeaderActions';
 import { IconButton, TagChip } from './base';
 import { EmptyState } from './Overlays';
 import { PostCard } from './PostCard';
 import { TagScrollRow } from './TagScrollRow';
+import { MastheadRule } from './theme';
 
 // Editorial spacing: wide margins and generous gaps; the hairline under each card
 // does the separating that card boxes used to.
@@ -41,12 +42,15 @@ export function CardWall({
     <View style={styles.header}>
       {banner}
       {kicker !== null && (
-        <Text style={[font.kicker, styles.kicker, { color: t.mutedForeground }]}>{kicker ?? `THREADS 收藏誌 · ${total ?? posts.length} 篇`}</Text>
+        // 底片 drops the magazine's name and keeps only the count.
+        <Text style={[t.font.kicker, styles.kicker, { color: t.mutedForeground }]}>
+          {kicker ?? (t.printFrame ? `${total ?? posts.length} 篇` : `THREADS 收藏誌 · ${total ?? posts.length} 篇`)}
+        </Text>
       )}
-      <View style={[styles.masthead, { borderBottomColor: t.foreground }]}>
+      <View>
         <View style={[styles.titleRow, onBack && styles.titleRowBack]}>
           {onBack && <IconButton name="chevron-back" label="返回所有標籤" onPress={onBack} />}
-          <Text style={[font.display, styles.title, { color: t.foreground }]} numberOfLines={1} accessibilityRole="header">
+          <Text style={[t.font.display, styles.title, { color: t.foreground }]} numberOfLines={1} accessibilityRole="header">
             {title}
           </Text>
           <HeaderActions
@@ -59,9 +63,11 @@ export function CardWall({
             onSettings={onSettings}
           />
         </View>
+        {/* 2px ink line (雜誌) or a sprocket strip (底片). */}
+        <MastheadRule style={styles.rule} />
       </View>
       {searching && (
-        <View style={[styles.search, { backgroundColor: t.field }]}>
+        <View style={[styles.search, { backgroundColor: t.field, borderRadius: t.radius.sm }]}>
           <Ionicons name="search" size={icon.md} color={t.mutedForeground} />
           <TextInput
             value={query}
@@ -71,7 +77,7 @@ export function CardWall({
             placeholderTextColor={t.mutedForeground}
             accessibilityLabel="搜尋作者或內文"
             returnKeyType="search"
-            style={[font.body, styles.searchInput, { color: t.foreground }]}
+            style={[t.font.body, styles.searchInput, { color: t.foreground }]}
           />
         </View>
       )}
@@ -144,8 +150,8 @@ const styles = StyleSheet.create({
   titleRow: { flexDirection: 'row', alignItems: 'center', marginRight: -space.sm },
   titleRowBack: { marginLeft: -space.md },
   title: { flex: 1, minWidth: 0 },
-  masthead: { borderBottomWidth: 2, paddingBottom: space.xs },
-  search: { flexDirection: 'row', alignItems: 'center', gap: space.sm, borderRadius: radius.sm, paddingHorizontal: space.md, minHeight: TOUCH },
+  rule: { marginTop: space.xs },
+  search: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingHorizontal: space.md, minHeight: TOUCH },
   searchInput: { flex: 1, minWidth: 0, minHeight: TOUCH },
   cell: { paddingHorizontal: GAP / 2, paddingVertical: ROW_GAP / 2 },
 });

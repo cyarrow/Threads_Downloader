@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-na
 import { FlashList } from '@shopify/flash-list';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { streamItemType, streamPosts } from '../streamModel';
-import { TOUCH, font, radius, space, useCollectionTheme } from '../tokens';
+import { TOUCH, space, useCollectionTheme } from '../tokens';
 import { ScreenHeader } from './HeaderActions';
 import { StreamPost } from './StreamPost';
 import { TagScrollRow } from './TagScrollRow';
@@ -28,12 +28,12 @@ function OrderToggle({ order, onChange }) {
         hitSlop={{ top: 4, bottom: 4 }}
         style={[styles.segment, on && { backgroundColor: t.foreground }]}
       >
-        <Text style={[font.label, { color: on ? t.background : t.foreground }]}>{label}</Text>
+        <Text style={[t.font.label, { color: on ? t.background : t.foreground }]}>{label}</Text>
       </Pressable>
     );
   };
   return (
-    <View accessibilityRole="radiogroup" accessibilityLabel="排序" style={[styles.toggle, { borderColor: t.outline }]}>
+    <View accessibilityRole="radiogroup" accessibilityLabel="排序" style={[styles.toggle, { borderColor: t.outline, borderRadius: t.radius.sm }]}>
       {item('new', '最新收藏')}
       {item('random', '隨機')}
     </View>
@@ -73,7 +73,7 @@ export function StreamScreen({ posts, index, filter, onFilter, active, actions, 
             accessibilityRole="button"
             style={styles.textButton}
           >
-            <Text style={[font.label, { color: t.accent }]}>換一批</Text>
+            <Text style={[t.font.label, { color: t.accent }]}>換一批</Text>
           </Pressable>
         )}
       </View>
@@ -111,9 +111,9 @@ export function StreamScreen({ posts, index, filter, onFilter, active, actions, 
         ListHeaderComponent={header}
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Text style={[font.title, { color: t.foreground }]}>{filter ? '這個標籤還沒有貼文' : '還沒有收藏'}</Text>
+            <Text style={[t.font.title, { color: t.foreground }]}>{filter ? '這個標籤還沒有貼文' : '還沒有收藏'}</Text>
             <View style={[styles.rule, { backgroundColor: t.foreground }]} />
-            <Text style={[font.body, { color: t.mutedForeground }]}>
+            <Text style={[t.font.body, { color: t.mutedForeground }]}>
               {filter ? '換一個標籤，或選「全部」。' : '從 Threads 分享貼文，或按右上角的 ＋ 貼上連結。'}
             </Text>
           </View>
@@ -128,7 +128,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1 },
   header: { paddingHorizontal: GUTTER, gap: space.sm, paddingBottom: space.xs },
   orderRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
-  toggle: { flexDirection: 'row', borderWidth: 1, borderRadius: radius.sm, overflow: 'hidden' },
+  toggle: { flexDirection: 'row', borderWidth: 1, overflow: 'hidden' },
   segment: { minHeight: 40, paddingHorizontal: space.md, justifyContent: 'center' },
   textButton: { minHeight: TOUCH, justifyContent: 'center', paddingHorizontal: space.sm },
   empty: { paddingHorizontal: GUTTER, paddingVertical: space.xxl, gap: space.md, alignItems: 'flex-start' },

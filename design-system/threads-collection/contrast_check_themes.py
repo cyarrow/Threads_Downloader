@@ -61,6 +61,8 @@ for tid, theme in data.items():
             check(f'onPaper on {s} (text card)', t['onPaper'], t[s]); check(f'onPaperMuted on {s} (date line)', t['onPaperMuted'], t[s])
         check('onEdge on edge (text on a print border)', t['onEdge'], t['edge'])
         check('onEdgeMuted on edge', t['onEdgeMuted'], t['edge'])
+        check('onTabBar on tabBar (active tab label)', t['onTabBar'], t['tabBar'])
+        check('onTabBarMuted on tabBar (tab labels)', t['onTabBarMuted'], t['tabBar'])
         for photo in ('#FFFFFF', '#808080', '#000000'):
             check(f'onBadge on badge over a {photo} photo (▶ 影片 / N 張)', t['onBadge'], over(t['badge'], photo))
         # Non-text (3:1).
@@ -71,6 +73,9 @@ for tid, theme in data.items():
         check('outline (control edge) vs card', t['outline'], t['card'], 3)
         check('switch off track (mutedForeground) vs card', t['mutedForeground'], t['card'], 3)
         check('danger icon on card', t['danger'], t['card'], 3)
+        if tid != 'editorial':
+            check('stamp as active-tab mark on tabBar', t['stamp'], t['tabBar'], 3)
+        check('onTabBarMuted icon on tabBar', t['onTabBarMuted'], t['tabBar'], 3)
         # Decorative: must be visible, no 3:1 requirement.
         check('border vs background (hairline)', t['border'], t['background'], 1.2)
         check('sprocket strip vs background', t['sprocket'], t['background'], 1.4)

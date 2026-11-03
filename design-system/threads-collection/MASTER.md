@@ -286,7 +286,7 @@
 
 ### 16.1 架構
 
-- 主題清單在 `app/src/collection/themes.js`（純資料，沒有 RN import）：每個主題有 `name`、淺色與深色兩組 `colors`（全部 27 個 token，見 `COLOR_TOKENS`）、`knobs`（版面開關與圓角）。`test/themes.test.mjs` 檢查每個主題、每個模式都定義齊全。
+- 主題清單在 `app/src/collection/themes.js`（純資料，沒有 RN import）：每個主題有 `name`、淺色與深色兩組 `colors`（全部 30 個 token，見 `COLOR_TOKENS`）、`knobs`（版面開關與圓角）。`test/themes.test.mjs` 檢查每個主題、每個模式都定義齊全。
 - 使用者在 **設定 › 主題**（雜誌 | 底片 分段按鈕）切換，立即生效；選擇存在 SQLite `meta` 表的 `theme`（`store.js`，和 `quick_save` 同一套），預設 `editorial`，讀到不認得的值也回到預設。
 - `CollectionProvider` 把選擇放進 `ThemeProvider`（`tokens.js`），所以 App 裡所有畫面都拿得到。主題在開啟資料庫後最先讀，早於預設標籤與舊紀錄搬移。
 
@@ -344,6 +344,7 @@ const t = useCollectionTheme();
 | `edge` / `onEdge` / `onEdgeMuted` | `#FBF8F1` / `#26231E` / `#5C554A` | `#EDE7DA` / `#26231E` / `#5C554A` | 相片白邊（深色模式也是亮的白邊）與印在白邊上的字 |
 | `stamp` / `stampGlow` | `#E8772E` / `rgba(255,120,40,0.45)` | 同左 | 日期壓印與光暈 |
 | `sprocket` / `sprocketHole` | `#26231E` / `#E6E0D4` | `#35312B` / `#141311` | 膠卷齒孔條 |
+| `tabBar` / `onTabBar` / `onTabBarMuted` | `#26231E` / `#F4EFE6` / `#A89F90` | `#0B0A09` / `#F4EFE6` / `#A89F90` | 底部分頁列（深色膠卷條）、目前分頁、其他分頁（雜誌＝`background` / `foreground` / `mutedForeground`） |
 | `badge` / `onBadge` | `rgba(0,0,0,0.6)` / `#FFFFFF` | 同左 | ▶ 影片、N 張 |
 | `scrim` | `rgba(20,16,10,0.5)` | `rgba(0,0,0,0.6)` | 面板遮罩 |
 
@@ -373,4 +374,8 @@ const t = useCollectionTheme();
 - **面板**：方角上緣；標題文楷 Bold。按鈕方角。
 - **內容頁**：媒體輪播放進相片框（左右各留 14 的頁面），右下日期壓印（影片播放時隱藏）；純文字貼文是大一號的相片背面。
 - **回顧卡**：上緣的墨線換成細齒孔條。
-- 卡片牆的報頭、FAB 由新的分頁畫面處理：報頭用 `t.font.display`，下面放 `<MastheadRule />`，上方小字在底片只寫「N 篇」。
+- 卡片牆的報頭：`t.font.display`，下面放 `<MastheadRule />`，上方小字在底片只寫「N 篇」（雜誌「THREADS 收藏誌 · N 篇」）。
+- **底部分頁列**：兩種模式都是深色膠卷條（`tabBar`），文字與圖示用 `onTabBar`（目前分頁，實心圖示＋粗體）/ `onTabBarMuted`，目前分頁圖示上方一個 `stamp` 橘色小條；只有中文分頁名。
+- **所有標籤**：封面是一張相片（`<Print>`，有日期壓印）疊在另一張相片上；純文字的標籤用 `<PhotoBack>`；記號是直條；不編號。
+- **翻翻**：卡片是一張相片——照片嵌在白邊（`edge`）裡，右下日期壓印、▶ 影片 / N 張在照片上，欄目標、內文、資訊列印在白邊上（`onEdge` / `onEdgeMuted`，「精選」也用 `onEdge`，因為 `accent` 在深色模式的亮白邊上不夠清楚）。純文字卡整張是相片背面（整面橫線的紙，字用 `t.tag(hue).onPaper` / `.onPaperMuted`）。下方按鈕方角。
+- **串流**：每篇前面一條齒孔條（不畫細線）；媒體是相片（左右各留 14，寬度 `width - 14*2 - PRINT_INSET`，日期壓印用 `savedAt`）；純文字貼文是大一號的相片背面；欄目標用 `<TagKicker>`。

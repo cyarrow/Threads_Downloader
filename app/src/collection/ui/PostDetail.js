@@ -253,7 +253,7 @@ export function PostDetail({ post, index, onBack, onAction, onStale }) {
           <View style={[styles.byline, rule]}>
             {!!post.author && (
               <Text style={[t.font.label, { color: t.foreground }]} numberOfLines={1}>
-                <Text style={{ color: t.mutedForeground }}>文 ／ </Text>@{post.author}
+                {t.theme !== 'film' && <Text style={{ color: t.mutedForeground }}>文 ／ </Text>}@{post.author}
               </Text>
             )}
             <Text style={[t.font.caption, styles.dateline, { color: t.mutedForeground }]}>收藏於 {formatDate(post.savedAt)}</Text>

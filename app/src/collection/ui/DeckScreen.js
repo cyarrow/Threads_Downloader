@@ -120,7 +120,22 @@ function SwipeCard({ ref, post, index, top, likeLabel, likeIcon, nopeLabel, onSw
         onPress={() => !dragged.current && onOpen(post)}
         accessibilityRole="button"
         accessibilityLabel={`@${post.author}，${caption}`}
-        accessibilityHint="開啟貼文。用下方的按鈕設為精選、看下一張或加標籤"
+        accessibilityHint="開啟貼文。也可以用動作選單設為精選、看下一張或加標籤"
+        // Screen-reader users get the swipe directions as named actions on the card itself
+        // (the buttons below the deck remain the visible single-tap alternative).
+        accessibilityActions={[
+          { name: 'activate' },
+          { name: 'like', label: likeLabel },
+          { name: 'next', label: nopeLabel },
+          { name: 'tags', label: '加標籤' },
+        ]}
+        onAccessibilityAction={({ nativeEvent }) => {
+          const name = nativeEvent.actionName;
+          if (name === 'activate') onOpen(post);
+          else if (name === 'like') fling('right');
+          else if (name === 'next') fling('left');
+          else if (name === 'tags') fling('up');
+        }}
         style={styles.fill}
       >
         <DeckCard post={post} index={index} likeLabel={likeLabel} likeIcon={likeIcon} nopeLabel={nopeLabel} likeOpacity={likeOpacity} nopeOpacity={nopeOpacity} />

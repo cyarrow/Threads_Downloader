@@ -50,7 +50,7 @@ export function TabBar({ tab, onChange }) {
               <View style={[styles.indicator, { backgroundColor: on ? t.onTabBar : 'transparent' }]} />
             )}
             <Ionicons name={on ? it.icon : `${it.icon}-outline`} size={icon.lg} color={color} />
-            <Text style={[t.font.caption, on && styles.labelOn, { color }]}>{it.label}</Text>
+            <Text style={[t.font.caption, on && styles.labelOn, { color }]} numberOfLines={1} maxFontSizeMultiplier={1.4}>{it.label}</Text>
           </Pressable>
         );
       })}

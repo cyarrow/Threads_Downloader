@@ -69,7 +69,7 @@ function StreamPostImpl({ post, index, width, active, onTag, onAction, onStale }
         <TagKicker hue={hue} featured={post.featured} untagged={!tags[0]} label={tags[0] ? tagLabel(tags[0], index.byId) : '未分類'} />
         <View>
           <Text style={[t.font.headline, { color: t.foreground }]} numberOfLines={1}>
-            <Text style={[t.font.label, { color: t.mutedForeground }]}>文 ／ </Text>@{post.author}
+            {t.theme !== 'film' && <Text style={[t.font.label, { color: t.mutedForeground }]}>文 ／ </Text>}@{post.author}
           </Text>
           <Text style={[t.font.caption, styles.dateline, { color: t.mutedForeground }]}>
             收藏於 {shortDate(post.savedAt)}

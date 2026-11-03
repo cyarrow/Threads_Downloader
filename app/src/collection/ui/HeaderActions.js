@@ -1,5 +1,5 @@
 import { StyleSheet, Text, View } from 'react-native';
-import { font, space, useCollectionTheme } from '../tokens';
+import { space, useCollectionTheme } from '../tokens';
 import { IconButton } from './base';
 
 // Top-right actions shared by every tab: ＋ 收藏連結 (was the floating button),
@@ -21,7 +21,7 @@ export function ScreenHeader({ title, onBack, backLabel = '返回', right, actio
   return (
     <View style={styles.header}>
       {onBack && <IconButton name="chevron-back" label={backLabel} onPress={onBack} />}
-      <Text style={[font.display, styles.title, { color: t.foreground }]} numberOfLines={1} accessibilityRole="header">
+      <Text style={[t.font.display, styles.title, { color: t.foreground }]} numberOfLines={1} accessibilityRole="header">
         {title}
       </Text>
       {right}

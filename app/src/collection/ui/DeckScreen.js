@@ -22,7 +22,7 @@ import { quickReasonText } from '../quickSave';
 import { isBrowsable } from '../rediscover';
 import { suggestTags } from '../suggest';
 import { UNCATEGORIZED, filterPosts, tagLabel } from '../tagModel';
-import { TOUCH, font, icon, space, useCollectionTheme } from '../tokens';
+import { TOUCH, icon, space, useCollectionTheme } from '../tokens';
 import { ScreenHeader } from './HeaderActions';
 import { DeckCard } from './DeckCard';
 import { TagScrollRow } from './TagScrollRow';
@@ -129,11 +129,13 @@ function SwipeCard({ ref, post, index, top, likeLabel, likeIcon, nopeLabel, onSw
   );
 }
 
-// Round button under the deck with its name printed below (the visible name is
-// also the accessible one). `big`: the ink-filled main action.
+// Button under the deck with its name printed below (the visible name is also
+// the accessible one). `big`: the ink-filled main action. Round in 雜誌; square
+// in themes without rounded corners (底片, t.radius.lg 0).
 function DeckButton({ iconName, label, a11yLabel, onPress, disabled, big, wide }) {
   const t = useCollectionTheme();
   const fg = big ? t.onPrimary : t.foreground;
+  const square = t.radius.lg === 0 && { borderRadius: 0 };
   return (
     <Pressable
       onPress={onPress}
@@ -147,17 +149,18 @@ function DeckButton({ iconName, label, a11yLabel, onPress, disabled, big, wide }
         style={[
           big ? styles.roundBig : styles.round,
           wide && styles.roundWide,
+          square,
           big ? { backgroundColor: t.primary, borderColor: t.primary } : { backgroundColor: t.background, borderColor: t.outline },
         ]}
       >
         <Ionicons name={iconName} size={big ? 26 : icon.md + 2} color={fg} />
         {wide && (
-          <Text style={[font.headline, { color: fg }]} numberOfLines={1}>
+          <Text style={[t.font.headline, { color: fg }]} numberOfLines={1}>
             {wide}
           </Text>
         )}
       </View>
-      <Text style={[font.caption, { color: t.mutedForeground }]} numberOfLines={1}>
+      <Text style={[t.font.caption, { color: t.mutedForeground }]} numberOfLines={1}>
         {label}
       </Text>
     </Pressable>
@@ -270,21 +273,21 @@ export function DeckScreen({ posts, index, filter, onFilter, onOpen, onPick, onF
           bleed={GUTTER}
         />
         <View style={styles.hintRow}>
-          <Text style={[font.meta, styles.flex, { color: t.mutedForeground }]}>
+          <Text style={[t.font.meta, styles.flex, { color: t.mutedForeground }]}>
             {empty ? '' : deckHint({ triage, suggestion: suggestionName, reason })}
           </Text>
-          {!empty && <Text style={[font.caption, styles.count, { color: t.mutedForeground }]}>剩 {left} 張</Text>}
+          {!empty && <Text style={[t.font.caption, styles.count, { color: t.mutedForeground }]}>剩 {left} 張</Text>}
         </View>
       </View>
 
       <View style={styles.deckArea}>
         {empty ? (
           <View style={styles.empty}>
-            <Text style={[font.title, { color: t.foreground }]}>
+            <Text style={[t.font.title, { color: t.foreground }]}>
               {triage ? '未分類都整理好了' : deck.queue.length ? '這一疊翻完了' : filter ? '這個標籤還沒有貼文' : '還沒有收藏'}
             </Text>
             <View style={[styles.rule, { backgroundColor: t.foreground }]} />
-            <Text style={[font.body, { color: t.mutedForeground }]}>
+            <Text style={[t.font.body, { color: t.mutedForeground }]}>
               {triage ? '新收藏沒有標籤時會出現在這裡。' : deck.queue.length ? `${deck.queue.length} 篇都看過了。` : '從 Threads 分享貼文，或按右上角的 ＋ 貼上連結。'}
             </Text>
             {!triage && deck.queue.length > 0 && (
@@ -297,7 +300,7 @@ export function DeckScreen({ posts, index, filter, onFilter, onOpen, onPick, onF
                 style={styles.textButton}
               >
                 <Ionicons name="shuffle" size={icon.md} color={t.accent} />
-                <Text style={[font.label, { color: t.accent }]}>再洗一次</Text>
+                <Text style={[t.font.label, { color: t.accent }]}>再洗一次</Text>
               </Pressable>
             )}
           </View>
@@ -321,7 +324,7 @@ export function DeckScreen({ posts, index, filter, onFilter, onOpen, onPick, onF
         )}
       </View>
 
-      <Text style={[font.meta, styles.status, { color: t.mutedForeground }]} numberOfLines={1}>
+      <Text style={[t.font.meta, styles.status, { color: t.mutedForeground }]} numberOfLines={1}>
         {status}
       </Text>
       <View style={styles.buttons}>

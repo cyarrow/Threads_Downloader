@@ -40,6 +40,9 @@ export const COLOR_TOKENS = [
   'stampGlow',
   'sprocket', // film strip rule under the masthead
   'sprocketHole',
+  'tabBar', // bottom tab bar (底片: a dark film strip in both schemes)
+  'onTabBar', // active tab label + icon on it
+  'onTabBarMuted', // other tabs' labels + icons
 ];
 
 // Layout knobs every theme sets (values are checked by the registry test).
@@ -86,6 +89,9 @@ export const THEMES = {
         stampGlow: 'rgba(255,120,40,0.45)',
         sprocket: '#1E1D1A',
         sprocketHole: '#F7F6F2',
+        tabBar: '#F7F6F2',
+        onTabBar: '#1E1D1A',
+        onTabBarMuted: '#5E5B53',
       },
       dark: {
         background: '#161615',
@@ -115,6 +121,9 @@ export const THEMES = {
         stampGlow: 'rgba(255,120,40,0.45)',
         sprocket: '#3A3934',
         sprocketHole: '#161615',
+        tabBar: '#161615',
+        onTabBar: '#EDEBE6',
+        onTabBarMuted: '#A9A69E',
       },
     },
     knobs: {
@@ -162,6 +171,9 @@ export const THEMES = {
         stampGlow: 'rgba(255,120,40,0.45)',
         sprocket: '#26231E',
         sprocketHole: '#E6E0D4',
+        tabBar: '#26231E',
+        onTabBar: '#F4EFE6',
+        onTabBarMuted: '#A89F90',
       },
       dark: {
         background: '#141311',
@@ -191,6 +203,9 @@ export const THEMES = {
         stampGlow: 'rgba(255,120,40,0.45)',
         sprocket: '#35312B',
         sprocketHole: '#141311',
+        tabBar: '#0B0A09',
+        onTabBar: '#F4EFE6',
+        onTabBarMuted: '#A89F90',
       },
     },
     knobs: {

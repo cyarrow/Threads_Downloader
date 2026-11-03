@@ -1,6 +1,6 @@
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { UNCATEGORIZED } from '../tagModel';
-import { TOUCH, font, space, useCollectionTheme } from '../tokens';
+import { TOUCH, space, useCollectionTheme } from '../tokens';
 import { TagChip } from './base';
 
 // One horizontally scrolling row of tag chips: 全部, every 大標籤, 未分類, then an
@@ -39,10 +39,10 @@ export function TagScrollRow({ index, selected, onChange, multi, trailing, bleed
       </ScrollView>
       {resultCount !== undefined && selected.length > 0 && (
         <View style={styles.result} accessibilityLiveRegion="polite">
-          <Text style={[font.meta, { color: t.mutedForeground }]}>{resultCount} 篇</Text>
-          <Text style={[font.meta, { color: t.mutedForeground }]}>·</Text>
+          <Text style={[t.font.meta, { color: t.mutedForeground }]}>{resultCount} 篇</Text>
+          <Text style={[t.font.meta, { color: t.mutedForeground }]}>·</Text>
           <Pressable onPress={() => onChange([])} accessibilityRole="button" hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={styles.clear}>
-            <Text style={[font.meta, { color: t.accent }]}>清除篩選</Text>
+            <Text style={[t.font.meta, { color: t.accent }]}>清除篩選</Text>
           </Pressable>
         </View>
       )}

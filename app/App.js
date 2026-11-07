@@ -553,7 +553,9 @@ function Home({ notice }) {
       {/* Hidden WebViews that read posts with the user's Threads session. */}
       {c.fetcherView}
       {dl.webViewProps && (
-        <WebView key={dl.webViewKey} {...dl.webViewProps} sharedCookiesEnabled style={styles.hiddenWeb} />
+        // react-native-webview wraps the page in a container with flex: 1; hide that
+        // container too, or it takes half the screen while a download is read.
+        <WebView key={dl.webViewKey} {...dl.webViewProps} sharedCookiesEnabled style={styles.hiddenWeb} containerStyle={styles.hiddenWeb} />
       )}
 
       <CardMenu post={menuPost} onClose={() => setMenuPost(null)} onAction={onAction} />

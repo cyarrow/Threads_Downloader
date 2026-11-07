@@ -97,6 +97,9 @@ export function usePostFetcher() {
       onError={() => finish(health.record({ type: 'error', kind: 'network' }))}
       sharedCookiesEnabled
       style={styles.hidden}
+      // The library wraps the page in a flex: 1 container; without hiding that too
+      // it took half the screen while a post was being read.
+      containerStyle={styles.hidden}
     />
   ) : null;
 

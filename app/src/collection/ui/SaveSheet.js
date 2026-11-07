@@ -9,7 +9,9 @@ import { cardStill } from '../media';
 import { tagHue, tagLabel } from '../tagModel';
 import { TOUCH, icon, space, useCollectionTheme } from '../tokens';
 import { PrimaryButton, Sheet, TagChip } from './base';
+import { NoteField } from './Notes';
 import { QuickPanel, UnsortedButton } from './QuickSave';
+import { RuleHitsRow } from './RuleHits';
 
 export function NewTagForm({ index, parentId: initialParent, onCreate, onCancel }) {
   const t = useCollectionTheme();
@@ -77,6 +79,7 @@ function SuggestionGroup({ items, index, selected, onToggle }) {
       {items.map(({ tag, reasons }) => (
         <View key={tag.id} style={styles.suggestion}>
           <TagChip
+            steady
             hue={tagHue(tag, index.byId)}
             label={tagLabel(tag, index.byId)}
             selected={selected.includes(tag.id)}
@@ -129,6 +132,7 @@ export function TagPicker({ index, selected, onToggle, onCreate, recentIds = [],
           <View style={styles.chips}>
             {recent.map((tag) => (
               <TagChip
+                steady
                 key={tag.id}
                 hue={tagHue(tag, index.byId)}
                 label={tagLabel(tag, index.byId)}
@@ -146,13 +150,14 @@ export function TagPicker({ index, selected, onToggle, onCreate, recentIds = [],
             const kids = index.children[p.id] || [];
             if (!kids.length) {
               return (
-                <TagChip key={p.id} hue={p.color} label={p.name} selected={selected.includes(p.id)} onPress={() => onToggle(p.id)} />
+                <TagChip steady key={p.id} hue={p.color} label={p.name} selected={selected.includes(p.id)} onPress={() => onToggle(p.id)} />
               );
             }
             const isOpen = open.includes(p.id);
             const picked = pickedChildren(p);
             return (
               <TagChip
+                steady
                 key={p.id}
                 hue={p.color}
                 label={picked ? `${p.name} · ${picked}` : p.name}
@@ -170,9 +175,9 @@ export function TagPicker({ index, selected, onToggle, onCreate, recentIds = [],
           .filter((p) => open.includes(p.id))
           .map((p) => (
             <View key={p.id} style={[styles.chips, styles.childRow, { borderLeftColor: t.border }]}>
-              <TagChip hue={p.color} label={`整個「${p.name}」`} selected={selected.includes(p.id)} onPress={() => onToggle(p.id)} />
+              <TagChip steady hue={p.color} label={`整個「${p.name}」`} selected={selected.includes(p.id)} onPress={() => onToggle(p.id)} />
               {(index.children[p.id] || []).map((c) => (
-                <TagChip key={c.id} hue={p.color} label={c.name} selected={selected.includes(c.id)} onPress={() => onToggle(c.id)} />
+                <TagChip steady key={c.id} hue={p.color} label={c.name} selected={selected.includes(c.id)} onPress={() => onToggle(c.id)} />
               ))}
               <TagChip
                 neutral
@@ -239,14 +244,29 @@ function Preview({ post, loading }) {
 // grew with its content pushed everything above a newly opened 小標籤 row up
 // (the 大標籤 just tapped jumped ~90–140px). At a fixed height the picker
 // scrolls inside it and a row opening below a chip leaves the chip in place.
+//
+// 自動標籤規則 (`ruleSlot`: { status: 'loading' | 'ready' | 'failed', hits }, only
+// for new saves when the user has rules): a row under the preview, one row tall
+// from the start, lists the tags the rules picked with their reason. Those tags
+// are in `selected` (App adds them when they arrive); unticking one drops it.
+// In the quick panel a tap saves its tag plus the rule tags, and 先存到未分類
+// becomes 只存到「…」 while rule tags are picked (same size, same place).
+// `note` / `onNote`: 「加一句筆記…」 under the tags (full panel, new saves only).
 export function SaveSheet({
   visible, mode, quick, post, loading, index, selected, onToggle, onCreateTag, recentIds, suggestions,
-  downloadToo, onDownloadToo, onDone, onClose, onQuickPick, onExpand,
+  downloadToo, onDownloadToo, onDone, onClose, onQuickPick, onExpand, ruleSlot, note, onNote,
 }) {
   const t = useCollectionTheme();
   const { height } = useWindowDimensions();
   const isNew = mode === 'new';
   const compact = isNew && !!quick;
+  const ruleTagIds = (ruleSlot?.hits || []).map((h) => h.tagId).filter((id) => index.byId[id]);
+  const kept = selected.filter((id) => index.byId[id]);
+  const onlyLabel = !kept.length
+    ? null
+    : kept.length === 1
+      ? `只存到「${index.byId[kept[0]].name}」`
+      : `只存到這 ${kept.length} 個標籤`;
   return (
     <Sheet
       visible={visible}
@@ -276,7 +296,8 @@ export function SaveSheet({
               />
             </Pressable>
           )}
-          {compact ? <UnsortedButton onPress={onDone} /> : <PrimaryButton title="完成" onPress={onDone} />}
+          {isNew && !compact && onNote && <NoteField value={note} onChange={onNote} />}
+          {compact ? <UnsortedButton onPress={onDone} label={onlyLabel} /> : <PrimaryButton title="完成" onPress={onDone} />}
         </View>
       }
     >
@@ -286,12 +307,16 @@ export function SaveSheet({
         keyboardShouldPersistTaps="handled"
       >
         {isNew && <Preview post={post} loading={loading} />}
+        {isNew && ruleSlot && (
+          <RuleHitsRow status={ruleSlot.status} hits={ruleSlot.hits} index={index} selected={selected} onToggle={onToggle} />
+        )}
         {visible && compact && (
           <QuickPanel
             post={post}
             index={index}
             suggestions={suggestions}
             recentIds={recentIds}
+            exclude={ruleTagIds}
             onPick={onQuickPick}
             onMore={onExpand}
           />

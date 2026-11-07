@@ -31,7 +31,7 @@ const num = (v) => (v ? Number(v) || null : null);
 // Runs on launch and whenever the app goes to the background; the rules live
 // in backupSchedule.js. Failures never interrupt the user: they only show up as
 // a status line in settings.
-export function useAutoBackup({ repo, ready, posts, postsRef, tagsRef }) {
+export function useAutoBackup({ repo, ready, posts, postsRef, tagsRef, rulesRef }) {
   // `now` is refreshed on every update and when the app comes back to the
   // foreground, so 「今天 / 昨天」 and the reminder never read the clock during render.
   const [state, setState] = useState({ loaded: false, folderUri: null, lastAt: null, manualAt: null, error: null, noteAt: null, now: 0 });
@@ -79,7 +79,7 @@ export function useAutoBackup({ repo, ready, posts, postsRef, tagsRef }) {
       const cur = current.current;
       if (!r || !cur.loaded || !cur.folderUri || running.current) return 'skipped';
       const now = Date.now();
-      const marker = collectionMarker(postsRef.current, tagsRef.current);
+      const marker = collectionMarker(postsRef.current, tagsRef.current, rulesRef?.current || []);
       if (!force) {
         const lastMarker = await r.getMeta(META.marker);
         const due = shouldAutoBackup({ folderUri: cur.folderUri, lastAt: cur.lastAt, lastMarker, marker, lastFailedAt: failedAt.current, now });
@@ -88,7 +88,7 @@ export function useAutoBackup({ repo, ready, posts, postsRef, tagsRef }) {
       running.current = true;
       setBusy(true);
       try {
-        const json = JSON.stringify(makeBackup(postsRef.current, tagsRef.current, now), null, 1);
+        const json = JSON.stringify(makeBackup(postsRef.current, tagsRef.current, rulesRef?.current || [], now), null, 1);
         const written = await writeBackupFile(cur.folderUri, autoBackupFileName(now), json);
         let own = rememberFile(JSON.parse((await r.getMeta(META.files)) || '[]'), written);
         try {
@@ -117,7 +117,7 @@ export function useAutoBackup({ repo, ready, posts, postsRef, tagsRef }) {
         setBusy(false);
       }
     },
-    [repo, postsRef, tagsRef, update],
+    [repo, postsRef, tagsRef, rulesRef, update],
   );
 
   // On launch (once loaded) and every time the app goes to the background.

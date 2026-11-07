@@ -263,11 +263,14 @@ function SettingsRow({ iconName, label, value, onPress }) {
   );
 }
 
-export function SettingsSheet({ visible, onClose, onLogin, onTags, onExport, onImport, onCheckUpdate, updateStatus, version, stats, quickSave, onQuickSave }) {
+export function SettingsSheet({ visible, onClose, onLogin, onTags, onRules, rulesCount = 0, onExport, onImport, onCheckUpdate, updateStatus, version, stats, quickSave, onQuickSave }) {
   return (
     <Sheet visible={visible} onClose={onClose} title="設定">
       <ScrollView style={styles.pickerScroll} contentContainerStyle={styles.settings}>
         <SettingsRow iconName="pricetags-outline" label="標籤管理" onPress={onTags} />
+        {onRules && (
+          <SettingsRow iconName="color-wand-outline" label="自動標籤規則" value={rulesCount ? `${rulesCount} 條` : '未設定'} onPress={onRules} />
+        )}
         <ThemeSettingRow />
         <QuickSaveSettingRow value={quickSave} onChange={onQuickSave} />
         <BackupSettings />

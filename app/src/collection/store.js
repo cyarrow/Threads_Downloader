@@ -13,6 +13,8 @@ import {
 } from './collectionModel';
 import { makeBackup, parseBackup, planImport } from './backup';
 import { applyTagDiff, removePosts, restorePosts } from './batch';
+import { mergeNote, normalizeNote } from './noteModel';
+import { autoTags, dropRules, normalizeRuleValue, postsToTag, repointRules } from './tagRules';
 import { useAutoBackup } from './autoBackup';
 import { deleteCover, saveCover } from './covers';
 import { usePostFetcher } from './fetcher';
@@ -33,6 +35,8 @@ const UNDO_MS = 8000;
 // details through the hidden WebView, keeps covers on disk, and migrates the old
 // download history on first launch. `onNotice({ kind, ... })` reports things the
 // UI should tell the user: 'duplicate', 'login', 'failed'.
+// Also 自動標籤規則 (tagRules.js) and 個人筆記 (noteModel.js); their actions are in
+// their own block below.
 export function CollectionProvider({ children, onNotice }) {
   const fetcher = usePostFetcher();
   const repo = useRef(null);
@@ -70,6 +74,26 @@ export function CollectionProvider({ children, onNotice }) {
     [setPosts],
   );
 
+  // --- 自動標籤規則: state (actions are further down) ---
+  const rulesRef = useRef([]);
+  const [rules, setRulesState] = useState([]);
+  // postId → [{ tagId, rule }]: the rules that matched a newly saved post when it
+  // finished loading, so the save sheet can show those tags as picked and why.
+  const [ruleHits, setRuleHits] = useState({});
+  const setRules = useCallback((fn) => {
+    rulesRef.current = fn(rulesRef.current);
+    setRulesState(rulesRef.current);
+  }, []);
+  // The tags a newly saved post gets from the rules, on top of the tags it has
+  // right now (the user may have picked some while it loaded). Null = no change.
+  const ruleTagsOnLoad = useCallback((id, fields) => {
+    const current = postsRef.current.find((p) => p.id === id);
+    if (!current || !rulesRef.current.length) return null;
+    const { hits, tagIds } = autoTags({ ...current, ...fields }, rulesRef.current, tagsRef.current);
+    if (hits.length) setRuleHits((m) => ({ ...m, [id]: hits }));
+    return tagIds;
+  }, []);
+
   // --- Fetch health (see fetchHealth.js) ---
   // Earlier failures that a later fetch showed were the reader breaking, not
   // deleted posts or a logged-out page.
@@ -88,6 +112,7 @@ export function CollectionProvider({ children, onNotice }) {
       const post = postsRef.current.find((p) => p.id === id);
       if (!post) return;
       const background = post.status === 'ready';
+      const fresh = !background && !post.fetchedAt; // newly saved (or its first try failed)
       try {
         const data = await fetcher.fetchPost(post.url);
         const fields = fetchedFields(data);
@@ -105,7 +130,11 @@ export function CollectionProvider({ children, onNotice }) {
           noticeRef.current?.({ kind: 'duplicate', id: existing.id });
           return;
         }
-        await patch(id, fields);
+        // Rule tags land in the same update as the post's details, so the save
+        // sheet never draws the post as ready without them.
+        const ruleTags = fresh ? ruleTagsOnLoad(id, fields) : null;
+        await patch(id, ruleTags ? { ...fields, tagIds: ruleTags } : fields);
+        if (ruleTags) await repo.current.setPostTags(id, postsRef.current.find((p) => p.id === id)?.tagIds || ruleTags);
         const cover = await saveCover(data.code, data.media[0]?.poster);
         if (cover) await patch(id, { cover });
       } catch (e) {
@@ -115,7 +144,7 @@ export function CollectionProvider({ children, onNotice }) {
         noticeRef.current?.({ kind: e.kind === 'login' ? 'login' : 'failed', id });
       }
     },
-    [fetcher, patch, setPosts, relabelAsParse],
+    [fetcher, patch, setPosts, relabelAsParse, ruleTagsOnLoad],
   );
 
   // First launch: default tags, then old download history → cards. Then load
@@ -145,15 +174,17 @@ export function CollectionProvider({ children, onNotice }) {
         }
         await r.setMeta('migrated_history', '1');
       }
-      const [p, t] = await Promise.all([r.listPosts(), r.listTags()]);
+      const [p, t, rl] = await Promise.all([r.listPosts(), r.listTags(), r.listRules()]);
       const rec = JSON.parse((await r.getMeta('recent')) || '[]');
       const dl = (await r.getMeta('download_too')) === '1';
       const qs = (await r.getMeta('quick_save')) !== '0';
       if (!alive) return;
       postsRef.current = p;
       tagsRef.current = t;
+      rulesRef.current = rl;
       setPostsState(p);
       setTagsState(t);
+      setRulesState(rl);
       setRecent(rec.filter((id) => t.some((tag) => tag.id === id)));
       setDownloadTooState(dl);
       setQuickSaveState(qs);
@@ -191,6 +222,7 @@ export function CollectionProvider({ children, onNotice }) {
         downloaded: false,
         savedAt: Date.now(),
         fetchedAt: null,
+        note: '',
         tagIds: [],
       };
       setPosts((list) => [post, ...list]);
@@ -389,9 +421,10 @@ export function CollectionProvider({ children, onNotice }) {
       setTags((list) => list.filter((t) => !gone.has(t.id)));
       setPosts((list) => list.map((p) => ({ ...p, tagIds: p.tagIds.filter((x) => !gone.has(x)) })));
       setRecent((list) => list.filter((x) => !gone.has(x)));
+      setRules((list) => dropRules(list, gone)); // the repo drops them by ON DELETE CASCADE
       await repo.current.deleteTag(id);
     },
-    [setPosts, setTags],
+    [setPosts, setTags, setRules],
   );
 
   const mergeTag = useCallback(
@@ -403,33 +436,110 @@ export function CollectionProvider({ children, onNotice }) {
       );
       setTags((list) => list.filter((t) => t.id !== fromId).map((t) => (t.parentId === fromId ? { ...t, parentId: toId } : t)));
       setRecent((list) => list.filter((x) => x !== fromId));
+      setRules((list) => repointRules(list, fromId, toId));
       await repo.current.mergeTag(fromId, toId);
     },
-    [setPosts, setTags],
+    [setPosts, setTags, setRules],
   );
 
   // --- Backup (phase 3) ---
   // Auto backup to a picked folder + the backup reminder (see autoBackup.js).
-  const autoBackup = useAutoBackup({ repo, ready, posts, postsRef, tagsRef });
+  const autoBackup = useAutoBackup({ repo, ready, posts, postsRef, tagsRef, rulesRef });
   const { noteManualExport } = autoBackup;
   const exportBackup = useCallback(() => {
     noteManualExport();
-    return JSON.stringify(makeBackup(postsRef.current, tagsRef.current), null, 1);
+    return JSON.stringify(makeBackup(postsRef.current, tagsRef.current, rulesRef.current), null, 1);
   }, [noteManualExport]);
 
   // Returns { added, skipped }; throws with a readable message for bad files.
   const importBackup = useCallback(
     async (text) => {
-      const plan = planImport(parseBackup(text), { posts: postsRef.current, tags: tagsRef.current }, newId);
+      const plan = planImport(parseBackup(text), { posts: postsRef.current, tags: tagsRef.current, rules: rulesRef.current }, newId);
       for (const tag of plan.tagsToCreate) await repo.current.insertTag(tag);
       for (const post of plan.postsToInsert) await repo.current.insertPost(post);
+      for (const rule of plan.rulesToCreate) await repo.current.insertRule(rule);
+      for (const { id, note } of plan.notesToFill) await repo.current.updatePost(id, { note });
+      const filled = Object.fromEntries(plan.notesToFill.map((n) => [n.id, n.note]));
       setTags((list) => [...list, ...plan.tagsToCreate]);
-      setPosts((list) => [...list, ...plan.postsToInsert].sort((a, b) => b.savedAt - a.savedAt));
+      setRules((list) => [...list, ...plan.rulesToCreate]);
+      setPosts((list) =>
+        [...list.map((p) => (filled[p.id] ? { ...p, note: filled[p.id] } : p)), ...plan.postsToInsert].sort((a, b) => b.savedAt - a.savedAt),
+      );
       // Bring covers and fresh links back in the background.
       plan.postsToInsert.slice(0, BACKGROUND_REFRESH_MAX).forEach((p) => runFetch(p.id));
       return { added: plan.postsToInsert.length, skipped: plan.skipped };
     },
-    [runFetch, setPosts, setTags],
+    [runFetch, setPosts, setTags, setRules],
+  );
+
+  // --- 自動標籤規則: actions ------------------------------------------------------
+  // createRule / updateRule take { kind, value, tagId } (validate with ruleError
+  // first) and return the stored rule.
+  const createRule = useCallback(
+    async ({ kind, value, tagId }) => {
+      const rule = { id: newId('r'), kind, value: normalizeRuleValue(kind, value), tagId, createdAt: Date.now() };
+      setRules((list) => [...list, rule]);
+      await repo.current.insertRule(rule);
+      return rule;
+    },
+    [setRules],
+  );
+
+  const updateRule = useCallback(
+    async (id, { kind, value, tagId }) => {
+      const fields = { kind, value: normalizeRuleValue(kind, value), tagId };
+      setRules((list) => list.map((r) => (r.id === id ? { ...r, ...fields } : r)));
+      await repo.current.updateRule(id, fields);
+      return rulesRef.current.find((r) => r.id === id);
+    },
+    [setRules],
+  );
+
+  const deleteRule = useCallback(
+    async (id) => {
+      setRules((list) => list.filter((r) => r.id !== id));
+      await repo.current.deleteRule(id);
+    },
+    [setRules],
+  );
+
+  // 套用到現有收藏: adds the rule's tag to every saved post it matches.
+  // Returns the ids of the posts that changed (for 復原 → unapplyRule).
+  const applyRule = useCallback(
+    async (rule) => {
+      const ids = postsToTag(rule, postsRef.current, tagsRef.current).map((p) => p.id);
+      const changed = new Set(ids);
+      setPosts((list) => list.map((p) => (changed.has(p.id) ? { ...p, tagIds: [...p.tagIds, rule.tagId] } : p)));
+      for (const id of ids) await repo.current.setPostTags(id, postsRef.current.find((p) => p.id === id).tagIds);
+      return ids;
+    },
+    [setPosts],
+  );
+
+  const unapplyRule = useCallback(
+    async (tagId, ids) => {
+      const changed = new Set(ids);
+      setPosts((list) => list.map((p) => (changed.has(p.id) ? { ...p, tagIds: p.tagIds.filter((x) => x !== tagId) } : p)));
+      for (const id of ids) {
+        const p = postsRef.current.find((x) => x.id === id);
+        if (p) await repo.current.setPostTags(id, p.tagIds);
+      }
+    },
+    [setPosts],
+  );
+
+  // --- 個人筆記 ---------------------------------------------------------------------
+  // `merge`: add to an existing note instead of replacing it (the save sheet's
+  // 「加一句筆記…」 for a link that turned out to be saved already).
+  const setNote = useCallback(
+    async (id, text, { merge = false } = {}) => {
+      const target = aliases.current[id] || id;
+      const post = postsRef.current.find((p) => p.id === target);
+      if (!post) return;
+      const note = merge ? mergeNote(post.note, text) : normalizeNote(text);
+      if (note !== (post.note || '')) await patch(target, { note });
+    },
+    [patch],
   );
 
   const value = useMemo(
@@ -466,11 +576,21 @@ export function CollectionProvider({ children, onNotice }) {
       exportBackup,
       importBackup,
       autoBackup,
+      // 自動標籤規則 + 個人筆記
+      rules,
+      ruleHits,
+      createRule,
+      updateRule,
+      deleteRule,
+      applyRule,
+      unapplyRule,
+      setNote,
     }),
     [ready, posts, tags, recent, downloadToo, fetcher.webView, addFromUrl, resolveId, setPostTags, createTag,
       setDownloadToo, toggleFeatured, setFeatured, quickSave, setQuickSave, markDownloaded, retry, refresh, retryLoginFailures, retryAllFailed, remove, removeMany, undoRemove, setTagsMany, setFeaturedMany, renameTag, recolorTag, deleteTag, mergeTag,
       exportBackup, importBackup,
-      autoBackup],
+      autoBackup,
+      rules, ruleHits, createRule, updateRule, deleteRule, applyRule, unapplyRule, setNote],
   );
 
   return (

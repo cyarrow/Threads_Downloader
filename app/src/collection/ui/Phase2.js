@@ -13,7 +13,8 @@ import { BRAND_FONT, TOUCH, icon, space, useCollectionTheme } from '../tokens';
 import { IconButton, PrimaryButton, SecondaryButton, Sheet, TagChip } from './base';
 import { PhotoBack, Print, SprocketRule, TagMark } from './theme';
 
-function Page({ title, onClose, children, footer }) {
+// Full-screen page (標籤管理, 自動標籤規則): back arrow + title, content, optional footer.
+export function Page({ title, onClose, children, footer }) {
   const t = useCollectionTheme();
   const insets = useSafeAreaInsets();
   return (
@@ -34,13 +35,16 @@ function Page({ title, onClose, children, footer }) {
 
 // --- Tag manager ---------------------------------------------------------------
 
-function TagEditSheet({ tag, index, counts, onClose, onRename, onRecolor, onMerge, onDelete }) {
+function TagEditSheet({ tag, index, counts, rules = [], onClose, onRename, onRecolor, onMerge, onDelete }) {
   const t = useCollectionTheme();
   const [name, setName] = useState(tag.name);
   const [error, setError] = useState(null);
   const [mode, setMode] = useState('edit'); // edit | merge | confirmDelete
   const affected = counts[tag.id] || 0;
   const kids = index.children[tag.id] || [];
+  // 自動標籤規則 that add this tag (or, for a delete, one of its 小標籤 too).
+  const ownRules = rules.filter((r) => r.tagId === tag.id).length;
+  const familyRules = rules.filter((r) => r.tagId === tag.id || kids.some((k) => k.id === r.tagId)).length;
   const targets = Object.values(index.byId).filter((x) => x.id !== tag.id && x.parentId !== tag.id);
 
   const save = () => {
@@ -117,6 +121,7 @@ function TagEditSheet({ tag, index, counts, onClose, onRename, onRecolor, onMerg
           <>
             <Text style={[t.font.body, { color: t.foreground }]}>
               把「{tag.name}」的 {affected} 篇貼文移到哪個標籤？{kids.length ? '它的小標籤會一起搬過去。' : ''}
+              {ownRules ? `${ownRules} 條自動標籤規則會改成加上新的標籤。` : ''}
             </Text>
             <View style={styles.chips}>
               {targets.map((x) => (
@@ -139,6 +144,7 @@ function TagEditSheet({ tag, index, counts, onClose, onRename, onRecolor, onMerg
           <>
             <Text style={[t.font.body, { color: t.foreground }]}>
               刪除「{tag.name}」{kids.length ? `和它的 ${kids.length} 個小標籤` : ''}？{affected} 篇貼文會拿掉這個標籤，貼文本身不會被刪除。
+              {familyRules ? `會加上這個標籤的 ${familyRules} 條自動標籤規則也會一起刪除。` : ''}
             </Text>
             <View style={styles.row}>
               <SecondaryButton title="取消" onPress={() => setMode('edit')} />
@@ -159,7 +165,7 @@ function TagEditSheet({ tag, index, counts, onClose, onRename, onRecolor, onMerg
   );
 }
 
-export function TagManager({ posts, index, onClose, onRename, onRecolor, onMerge, onDelete }) {
+export function TagManager({ posts, index, rules, onClose, onRename, onRecolor, onMerge, onDelete }) {
   const t = useCollectionTheme();
   const [editing, setEditing] = useState(null);
   const counts = useMemo(() => {
@@ -206,6 +212,7 @@ export function TagManager({ posts, index, onClose, onRename, onRecolor, onMerge
           tag={editingTag}
           index={index}
           counts={counts}
+          rules={rules}
           onClose={() => setEditing(null)}
           onRename={onRename}
           onRecolor={onRecolor}

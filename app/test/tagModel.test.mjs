@@ -43,6 +43,13 @@ test('filterPosts: search matches author or caption and combines with tags', () 
 
 });
 
+test('filterPosts: search also matches the user\'s note', () => {
+  const withNote = [...posts, { id: 5, author: 'e.five', caption: '風景', note: '下次帶 Mom 去', tagIds: [] }];
+  assert.deepEqual(ids(filterPosts(withNote, [], 'mom', index)), [5]);
+  assert.deepEqual(ids(filterPosts(withNote, [UNCATEGORIZED], '帶', index)), [5]);
+  assert.deepEqual(ids(filterPosts(withNote, ['food'], '帶', index)), []);
+});
+
 test('foldChips folds overflow into +N but keeps selected chips visible', () => {
   const items = ['a', 'b', 'c', 'd', 'e'].map((id) => ({ id }));
   assert.deepEqual(foldChips(items, [], 3, false), { visible: items.slice(0, 3), hidden: 2 });

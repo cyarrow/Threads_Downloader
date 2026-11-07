@@ -78,12 +78,16 @@ export function IconButton({ name, label, onPress, color, size = icon.lg, disabl
 // `neutral` chips (全部, +N, 新增) have no colour square.
 // `mixed` (批次選取's tri-state picker: only some of the selected posts have the
 // tag): a dashed ink edge and a — mark, read as checked 'mixed'.
-export function TagChip({ label, hue, selected, mixed, onPress, variant = 'choice', neutral, iconName, trailingIcon, a11yLabel, expanded }) {
+// `steady`: the marker sits in a box as wide as the ✓, so selecting never changes
+// the chip's width (pickers where a chip can be selected for the user — 自動標籤規則 —
+// must not reflow the chips around it).
+export function TagChip({ label, hue, selected, mixed, onPress, variant = 'choice', neutral, iconName, trailingIcon, a11yLabel, expanded, steady }) {
   const t = useCollectionTheme();
   const display = variant === 'display';
   const on = selected && !display;
   const some = mixed && !on && !display;
   const text = on ? t.background : t.foreground;
+  const marker = steady && !neutral && !display;
   const content = (
     <View
       style={[
@@ -96,9 +100,17 @@ export function TagChip({ label, hue, selected, mixed, onPress, variant = 'choic
             : { borderColor: display ? t.border : t.outline },
       ]}
     >
-      {on && <Ionicons name="checkmark" size={icon.sm} color={text} />}
-      {some && <Ionicons name="remove" size={icon.sm} color={text} />}
-      {!neutral && !on && <TagMark hue={hue} size={display ? 'sm' : 'md'} />}
+      {marker ? (
+        <View style={styles.steadyMark}>
+          {on ? <Ionicons name="checkmark" size={icon.sm} color={text} /> : some ? <Ionicons name="remove" size={icon.sm} color={text} /> : <TagMark hue={hue} size="md" />}
+        </View>
+      ) : (
+        <>
+          {on && <Ionicons name="checkmark" size={icon.sm} color={text} />}
+          {some && <Ionicons name="remove" size={icon.sm} color={text} />}
+          {!neutral && !on && <TagMark hue={hue} size={display ? 'sm' : 'md'} />}
+        </>
+      )}
       {iconName && <Ionicons name={iconName} size={icon.sm} color={text} />}
       <Text style={[display ? t.font.caption : t.font.label, { color: text }]} numberOfLines={1}>
         {label}
@@ -214,6 +226,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
   },
+  steadyMark: { width: icon.sm, alignItems: 'center', justifyContent: 'center' },
   chipDisplay: {
     height: 24,
     paddingHorizontal: space.sm,

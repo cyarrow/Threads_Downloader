@@ -54,7 +54,9 @@ export function PrintLabel({ kind, count }) {
 // Children fill the inner box (give the image width '100%' and an aspect ratio,
 // or an explicit size). `imprint={false}` hides the date (e.g. while a video plays
 // under native controls). `kind`: 'video' | 'multi' | null, with `count`.
-export function Print({ savedAt, kind, count, imprint = true, style, children }) {
+// `note`: the user's note (one line), written by hand on the bottom edge, which
+// grows to hold it (底片 only; 雜誌 shows notes under the card instead).
+export function Print({ savedAt, kind, count, imprint = true, note, style, children }) {
   const t = useCollectionTheme();
   if (!t.printFrame) {
     return <View style={[{ borderRadius: t.radius.xs, overflow: 'hidden' }, style]}>{children}</View>;
@@ -70,6 +72,11 @@ export function Print({ savedAt, kind, count, imprint = true, style, children })
           </View>
         )}
       </View>
+      {!!note && (
+        <Text style={[t.font.hand, styles.note, { color: t.onEdge }]} numberOfLines={1} accessibilityElementsHidden importantForAccessibility="no">
+          {note}
+        </Text>
+      )}
     </View>
   );
 }
@@ -81,6 +88,8 @@ const styles = StyleSheet.create({
     boxShadow: '0px 1px 2px rgba(0,0,0,0.18)',
   },
   inner: { overflow: 'hidden' },
+  // Handwriting on the wide bottom edge, like a caption on an instant photo.
+  note: { paddingTop: 5, paddingHorizontal: 2, marginBottom: -2 },
   glow: { textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 6 },
   imprint: { position: 'absolute', right: 8, bottom: 6 },
   label: { position: 'absolute', flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 6, paddingVertical: 2 },

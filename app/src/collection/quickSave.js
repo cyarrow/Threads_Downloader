@@ -20,10 +20,12 @@ export function postSettled(post) {
 // A 大標籤 is skipped once one of its 小標籤 is offered (the specific tag wins,
 // like suggestTags folding a parent into its child).
 // reason: { kind: 'author', count } | { kind: 'keyword', word } | { kind: 'recent' } | { kind: 'browse' }
-export function rankQuickTags({ suggestions = [], recentIds = [], index, limit = QUICK_SLOTS }) {
+// `exclude`: tags already on the post (自動標籤規則 added them), so a button
+// isn't spent on a tag the save gets anyway.
+export function rankQuickTags({ suggestions = [], recentIds = [], index, limit = QUICK_SLOTS, exclude = [] }) {
   const out = [];
   const add = (tag, reason) => {
-    if (!tag || out.length >= limit || out.some((p) => p.tag.id === tag.id)) return;
+    if (!tag || out.length >= limit || out.some((p) => p.tag.id === tag.id) || exclude.includes(tag.id)) return;
     if (!tag.parentId && out.some((p) => p.tag.parentId === tag.id)) return;
     out.push({ tag, reason });
   };

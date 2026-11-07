@@ -93,7 +93,8 @@ function SkeletonRow({ first }) {
 // is still being read they show as skeletons for up to SETTLE_MS, then the best
 // picks so far are drawn once and never reorder. 其他標籤… sits below them and is
 // usable from the start, as are 先存到未分類 and the download switch in the footer.
-export function QuickPanel({ post, index, suggestions, recentIds, onPick, onMore }) {
+// `exclude`: tags the save gets anyway (自動標籤規則), so no button is spent on them.
+export function QuickPanel({ post, index, suggestions, recentIds, exclude, onPick, onMore }) {
   const t = useCollectionTheme();
   const [timedOut, setTimedOut] = useState(false);
   const [locked, setLocked] = useState(null);
@@ -106,7 +107,7 @@ export function QuickPanel({ post, index, suggestions, recentIds, onPick, onMore
   }, []);
 
   const ready = timedOut || postSettled(post);
-  const live = !locked && ready ? rankQuickTags({ suggestions, recentIds, index }) : null;
+  const live = !locked && ready ? rankQuickTags({ suggestions, recentIds, index, exclude }) : null;
   const next = lockPicks(locked, live, ready);
   if (next !== locked) setLocked(next); // render-time lock: the rows never draw unlocked
   // A tag deleted elsewhere while the panel is open just drops out.
@@ -169,8 +170,9 @@ export function QuickPanel({ post, index, suggestions, recentIds, onPick, onMore
 }
 
 // Compact mode's finish button: same spot as 完成, outlined so the tag rows
-// stay the main choice. Saves with no tags, like 完成 with nothing picked.
-export function UnsortedButton({ onPress }) {
+// stay the main choice. Saves with no tags, like 完成 with nothing picked —
+// or, when 自動標籤規則 picked some, with just those (`label` 只存到「…」).
+export function UnsortedButton({ onPress, label }) {
   const t = useCollectionTheme();
   return (
     <Pressable
@@ -184,8 +186,10 @@ export function UnsortedButton({ onPress }) {
     >
       {({ pressed }) => (
         <>
-          <Ionicons name="file-tray-outline" size={icon.md} color={pressed ? t.background : t.foreground} />
-          <Text style={[t.font.headline, { color: pressed ? t.background : t.foreground }]}>先存到未分類</Text>
+          <Ionicons name={label ? 'checkmark-done-outline' : 'file-tray-outline'} size={icon.md} color={pressed ? t.background : t.foreground} />
+          <Text style={[t.font.headline, styles.unsortedText, { color: pressed ? t.background : t.foreground }]} numberOfLines={1}>
+            {label || '先存到未分類'}
+          </Text>
         </>
       )}
     </Pressable>
@@ -250,6 +254,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: space.xl,
   },
+  unsortedText: { flexShrink: 1 },
   settingRow: {
     minHeight: 56,
     flexDirection: 'row',

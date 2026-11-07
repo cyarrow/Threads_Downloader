@@ -4,9 +4,11 @@ import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { failureLabel } from '../fetchHealth';
 import { cardStill } from '../media';
+import { noteFirstLine } from '../noteModel';
 import { tagHue, tagLabel } from '../tagModel';
 import { icon, space, useCollectionTheme } from '../tokens';
 import { PressScale } from './base';
+import { NoteLine } from './Notes';
 import { PhotoBack, Print, TagKicker } from './theme';
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
@@ -77,6 +79,9 @@ function Meta({ post, kind }) {
 // tag-tinted page that opens with a large 「. 底片: the photo is a print (paper
 // edge, date imprint, ▶ 影片 / N 張), no rule, two lines of text; text-only posts
 // are the back of a photo (PhotoBack). Featured posts span the row.
+// The user's note (個人筆記) shows as one line: 雜誌 — pencil + first line above
+// the meta line; 底片 — handwritten on the print's bottom edge, or in pencil on
+// the photo's back for a text-only post.
 // `wide`: the wall is in its 3-column (tablet / landscape) layout, where a
 // full-row featured card needs a flatter image to stay within the screen.
 // `maxMediaHeight` keeps any one image from filling a short (landscape) screen.
@@ -88,6 +93,7 @@ function PostCardImpl({ post, index, onPress, onLongPress, onRetry, wide, maxMed
   const still = cardStill(post);
   const visual = !!(first || still);
   const rule = t.printFrame ? styles.unruled : { borderBottomColor: t.border };
+  const note = noteFirstLine(post.note);
 
   if (post.status === 'loading') {
     return (
@@ -127,6 +133,7 @@ function PostCardImpl({ post, index, onPress, onLongPress, onRetry, wide, maxMed
     kind,
     (post.caption || '').slice(0, 30),
     tags.length && `標籤：${tags.map((tg) => tg.name).join('、')}`,
+    note && `我的筆記：${note.slice(0, 30)}`,
     post.status === 'sourceDeleted' && '原貼文已刪除',
     post.downloaded && '已下載',
   ].filter(Boolean).join('，');
@@ -144,7 +151,7 @@ function PostCardImpl({ post, index, onPress, onLongPress, onRetry, wide, maxMed
       style={[styles.wrap, rule]}
     >
       {visual ? (
-        <Print savedAt={post.savedAt} kind={printKind} count={post.media.length} style={styles.mediaGap}>
+        <Print savedAt={post.savedAt} kind={printKind} count={post.media.length} note={note} style={styles.mediaGap}>
           {/* recyclingKey: the list reuses card views while scrolling; without it a
               recycled card briefly shows the previous post's image. */}
           <Image
@@ -164,6 +171,7 @@ function PostCardImpl({ post, index, onPress, onLongPress, onRetry, wide, maxMed
           author={post.author}
           textStyle={post.featured ? t.font.cardFeatured : t.font.quote}
           numberOfLines={8}
+          note={note}
           style={styles.mediaGap}
         />
       )}
@@ -173,6 +181,7 @@ function PostCardImpl({ post, index, onPress, onLongPress, onRetry, wide, maxMed
           {post.caption}
         </Text>
       )}
+      {!!note && !t.printFrame && <NoteLine text={note} />}
       <Meta post={post} kind={metaKind} />
     </PressScale>
   );

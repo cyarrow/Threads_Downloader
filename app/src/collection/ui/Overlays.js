@@ -43,6 +43,7 @@ export function CardMenu({ post, onClose, onAction, selectable }) {
         )}
         <MenuRow iconName="open-outline" label="在 Threads 開啟" onPress={act('open')} />
         {selectable && <MenuRow iconName="checkmark-circle-outline" label="選取多篇" onPress={act('select')} />}
+        {!!post.author && <MenuRow iconName="color-wand-outline" label={`為 @${post.author} 建立規則`} onPress={act('rule')} />}
         {/* The destructive action stands apart, below a gap after the last rule. */}
         <View style={styles.divider} />
         <MenuRow iconName="trash-outline" label="刪除收藏" danger onPress={act('delete')} last />

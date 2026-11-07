@@ -61,6 +61,8 @@ for tid, theme in data.items():
             check(f'onPaper on {s} (text card)', t['onPaper'], t[s]); check(f'onPaperMuted on {s} (date line)', t['onPaperMuted'], t[s])
         check('onEdge on edge (text on a print border)', t['onEdge'], t['edge'])
         check('onEdgeMuted on edge', t['onEdgeMuted'], t['edge'])
+        if tid != 'editorial':
+            check('note handwriting (onEdge, hand 13pt) on a print edge (wall card)', t['onEdge'], t['edge'])
         check('onTabBar on tabBar (active tab label)', t['onTabBar'], t['tabBar'])
         check('onTabBarMuted on tabBar (tab labels)', t['onTabBarMuted'], t['tabBar'])
         for photo in ('#FFFFFF', '#808080', '#000000'):
@@ -76,6 +78,8 @@ for tid, theme in data.items():
         if tid != 'editorial':
             check('stamp as active-tab mark on tabBar', t['stamp'], t['tabBar'], 3)
         check('onTabBarMuted icon on tabBar', t['onTabBarMuted'], t['tabBar'], 3)
+        for s in ('background', 'card'):
+            check(f'note ink bar (foreground) vs {s} (串流, detail)', t['foreground'], t[s], 3)
         # Decorative: must be visible, no 3:1 requirement.
         check('border vs background (hairline)', t['border'], t['background'], 1.2)
         check('sprocket strip vs background', t['sprocket'], t['background'], 1.4)
@@ -89,6 +93,8 @@ for tid, theme in data.items():
                 check(f'tag {h} name (kicker) on {surf}', s['text'], t[surf])
             check(f'tag {h} text card: onPaper on paper {s["paper"]}', s['onPaper'], s['paper'])
             check(f'tag {h} text card: onPaperMuted on paper {s["paper"]}', s['onPaperMuted'], s['paper'])
+            if s['paperRule']:
+                check(f'tag {h} note in pencil (onPaperMuted) on a photo back', s['onPaperMuted'], s['paper'])
             if s['paperRule']:
                 check(f'tag {h} paper rule vs paper', s['paperRule'], s['paper'], 1.1)
 

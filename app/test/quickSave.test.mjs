@@ -110,3 +110,8 @@ test('lateSuggestions: only suggestions that were not on screen when the picker 
   assert.deepEqual(ids(lateSuggestions([], live)), ['fan-a', 'trip', 'meme']);
   assert.deepEqual(lateSuggestions(live, live), []);
 });
+
+test('tags a rule already added are not offered as buttons', () => {
+  const picks = rankQuickTags({ recentIds: ['fan-a', 'trip'], index, exclude: ['fan-a', 'fan'] });
+  assert.deepEqual(ids(picks), ['trip', 'life', 'food']);
+});

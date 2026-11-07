@@ -1,11 +1,15 @@
 // Backup format for the collection (phase 3). Pure — tested in Node.
 // The file is plain JSON so it stays readable even without this app.
 // Covers are left out (they're re-downloaded from the post on the new phone).
+// Version 2 adds each post's `note` (only when it has one) and `rules`
+// (自動標籤規則, pointing at the file's tag ids). Version 1 files still import.
+import { normalizeNote } from './noteModel.js';
+import { RULE_KINDS, normalizeRuleValue } from './tagRules.js';
 
 export const BACKUP_APP = 'threads-downloader';
-export const BACKUP_VERSION = 1;
+export const BACKUP_VERSION = 2;
 
-export function makeBackup(posts, tags, now = Date.now()) {
+export function makeBackup(posts, tags, rules = [], now = Date.now()) {
   return {
     app: BACKUP_APP,
     version: BACKUP_VERSION,
@@ -13,9 +17,11 @@ export function makeBackup(posts, tags, now = Date.now()) {
     tags: tags.map(({ id, name, parentId, color, createdAt }) => ({ id, name, parentId: parentId || null, color, createdAt })),
     posts: posts
       .filter((p) => p.code)
-      .map(({ code, url, author, caption, media, featured, downloaded, savedAt, tagIds }) => ({
+      .map(({ code, url, author, caption, media, featured, downloaded, savedAt, tagIds, note }) => ({
         code, url, author, caption, media, featured: !!featured, downloaded: !!downloaded, savedAt, tagIds,
+        ...(note ? { note } : {}),
       })),
+    rules: rules.map(({ kind, value, tagId, createdAt }) => ({ kind, value, tagId, createdAt })),
   };
 }
 
@@ -64,7 +70,9 @@ export function parseBackup(text) {
 }
 
 // Works out what an import adds. Tags match existing ones by name under the same
-// parent; posts already saved (same code) are skipped. `newId(prefix)` makes ids.
+// parent; posts already saved (same code) are skipped, except that a note the
+// saved post doesn't have yet is filled in (`notesToFill`). Rules are added unless
+// the same rule exists. `newId(prefix)` makes ids. `existing.rules` may be omitted.
 export function planImport(backup, existing, newId) {
   const keyOf = (name, parentKey) => `${parentKey || ''}\u0000${name}`;
   const byKey = new Map();
@@ -90,10 +98,14 @@ export function planImport(backup, existing, newId) {
 
   const have = new Set(existing.posts.map((p) => p.code).filter(Boolean));
   const postsToInsert = [];
+  const notesToFill = [];
   let skipped = 0;
   for (const p of backup.posts) {
     if (!p.code || have.has(p.code)) {
       skipped += 1;
+      const saved = p.code && existing.posts.find((x) => x.code === p.code);
+      const note = normalizeNote(p.note);
+      if (saved && note && !saved.note && !notesToFill.some((n) => n.id === saved.id)) notesToFill.push({ id: saved.id, note });
       continue;
     }
     have.add(p.code);
@@ -110,8 +122,20 @@ export function planImport(backup, existing, newId) {
       downloaded: !!p.downloaded,
       savedAt: p.savedAt || Date.now(),
       fetchedAt: null, // refresh in the background to bring the cover back
+      note: normalizeNote(p.note),
       tagIds: (p.tagIds || []).map((id) => idMap[id]).filter(Boolean),
     });
   }
-  return { tagsToCreate, postsToInsert, skipped };
+
+  const rulesToCreate = [];
+  const key = (r) => `${r.kind}\u0000${r.value.toLowerCase()}\u0000${r.tagId}`;
+  const ruleKeys = new Set((existing.rules || []).map(key));
+  for (const r of Array.isArray(backup.rules) ? backup.rules : []) {
+    if (!r || !RULE_KINDS.includes(r.kind)) continue;
+    const rule = { kind: r.kind, value: normalizeRuleValue(r.kind, r.value), tagId: idMap[r.tagId] };
+    if (!rule.value || !rule.tagId || ruleKeys.has(key(rule))) continue;
+    ruleKeys.add(key(rule));
+    rulesToCreate.push({ id: newId('r'), ...rule, createdAt: r.createdAt || Date.now() });
+  }
+  return { tagsToCreate, postsToInsert, skipped, notesToFill, rulesToCreate };
 }

@@ -6,6 +6,7 @@ import { cardStill, imageSource } from '../media';
 import { tagHue, tagLabel } from '../tagModel';
 import { TOUCH, icon, space, useCollectionTheme } from '../tokens';
 import { TagChip } from './base';
+import { NoteBlock } from './Notes';
 import { MediaPager } from './PostDetail';
 import { PRINT_INSET, PhotoBack, Print, SprocketRule, TagKicker } from './theme';
 
@@ -44,6 +45,8 @@ function Action({ iconName, label, onPress }) {
 // tag-tinted page. 底片: a sprocket strip opens each post like a frame on a roll,
 // media are a print (paper edge, savedAt imprint) inset from the screen edge,
 // text-only posts are the back of a photo.
+// The user's note (個人筆記) follows the caption in full, behind an ink bar and
+// labelled 「我的筆記」, in sans — the user's words, not the author's.
 // `active`: false once the post scrolls out of view, which stops its video.
 function StreamPostImpl({ post, index, width, active, onTag, onAction, onStale }) {
   const t = useCollectionTheme();
@@ -85,6 +88,7 @@ function StreamPostImpl({ post, index, width, active, onTag, onAction, onStale }
             // Text-only post: the same paper as its card and detail page.
             <PhotoBack hue={hue} text={post.caption} savedAt={post.savedAt} large selectable />
           ))}
+        {!!post.note && <NoteBlock text={post.note} selectable />}
       </View>
 
       {post.media.length > 0 ? (

@@ -1,7 +1,7 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
-import { createMemoryRepo, createSqlRepo } from '../src/collection/repo.js';
+import { SCHEMA_VERSION, createMemoryRepo, createSqlRepo } from '../src/collection/repo.js';
 
 // Same async surface as expo-sqlite, backed by Node's built-in SQLite.
 function nodeDriver() {
@@ -112,6 +112,55 @@ for (const [name, make] of [
       assert.deepEqual((await repo.listPosts())[0].tagIds, []);
     });
 
+    test('notes round-trip; empty means no note', async () => {
+      const repo = await setup();
+      await repo.insertPost(post({ note: '想去這間' }));
+      await repo.insertPost(post({ id: 'p2', code: 'DEF', savedAt: 2000 }));
+      let list = await repo.listPosts();
+      assert.equal(list.find((p) => p.id === 'p1').note, '想去這間');
+      assert.equal(list.find((p) => p.id === 'p2').note, '');
+      await repo.updatePost('p2', { note: '第二篇\n第二行' });
+      await repo.updatePost('p1', { note: '' });
+      list = await repo.listPosts();
+      assert.equal(list.find((p) => p.id === 'p1').note, '');
+      assert.equal((await repo.findByCode('DEF')).note, '第二篇\n第二行');
+    });
+
+    test('tag rules round-trip, update and delete', async () => {
+      const repo = await setup();
+      await repo.insertRule({ id: 'r2', kind: 'keyword', value: '巡演', tagId: 'fan', createdAt: 20 });
+      await repo.insertRule({ id: 'r1', kind: 'author', value: 'starlight.daily', tagId: 'fan-a', createdAt: 10 });
+      assert.deepEqual(await repo.listRules(), [
+        { id: 'r1', kind: 'author', value: 'starlight.daily', tagId: 'fan-a', createdAt: 10 },
+        { id: 'r2', kind: 'keyword', value: '巡演', tagId: 'fan', createdAt: 20 },
+      ]);
+      await assert.rejects(repo.insertRule({ id: 'r3', kind: 'keyword', value: '巡演', tagId: 'fan', createdAt: 30 }));
+      await repo.updateRule('r2', { value: '演唱會', tagId: 'fan-a', bogus: 1 });
+      assert.deepEqual((await repo.listRules())[1], { id: 'r2', kind: 'keyword', value: '演唱會', tagId: 'fan-a', createdAt: 20 });
+      await repo.deleteRule('r1');
+      assert.deepEqual((await repo.listRules()).map((r) => r.id), ['r2']);
+    });
+
+    test('deleting a tag removes its rules (a 大標籤 takes its 小標籤 rules too)', async () => {
+      const repo = await setup();
+      await repo.insertTag({ id: 'food', name: '美食', parentId: null, color: 'orange', createdAt: 3 });
+      await repo.insertRule({ id: 'r1', kind: 'author', value: 'a', tagId: 'fan-a', createdAt: 1 });
+      await repo.insertRule({ id: 'r2', kind: 'author', value: 'b', tagId: 'fan', createdAt: 2 });
+      await repo.insertRule({ id: 'r3', kind: 'keyword', value: '拉麵', tagId: 'food', createdAt: 3 });
+      await repo.deleteTag('fan');
+      assert.deepEqual((await repo.listRules()).map((r) => r.id), ['r3']);
+    });
+
+    test('merging a tag re-points its rules and drops exact duplicates', async () => {
+      const repo = await setup();
+      await repo.insertTag({ id: 'idol', name: '偶像', parentId: null, color: 'sky', createdAt: 3 });
+      await repo.insertRule({ id: 'r1', kind: 'author', value: 'a', tagId: 'idol', createdAt: 1 });
+      await repo.insertRule({ id: 'r2', kind: 'author', value: 'b', tagId: 'idol', createdAt: 2 });
+      await repo.insertRule({ id: 'r3', kind: 'author', value: 'a', tagId: 'fan', createdAt: 3 });
+      await repo.mergeTag('idol', 'fan');
+      assert.deepEqual((await repo.listRules()).map((r) => [r.id, r.value, r.tagId]), [['r2', 'b', 'fan'], ['r3', 'a', 'fan']]);
+    });
+
     test('meta values upsert', async () => {
       const repo = await setup();
       assert.equal(await repo.getMeta('k'), null);
@@ -121,3 +170,36 @@ for (const [name, make] of [
     });
   });
 }
+
+describe('sqlite migration from schema 1', () => {
+  test('init adds posts.note and tag_rules to an existing database, keeping its data', async () => {
+    const driver = nodeDriver();
+    await driver.execAsync(`
+      PRAGMA foreign_keys = ON;
+      CREATE TABLE posts (id TEXT PRIMARY KEY NOT NULL, code TEXT UNIQUE, url TEXT NOT NULL, author TEXT, caption TEXT,
+        media TEXT NOT NULL DEFAULT '[]', cover TEXT, status TEXT NOT NULL DEFAULT 'loading', error TEXT,
+        featured INTEGER NOT NULL DEFAULT 0, downloaded INTEGER NOT NULL DEFAULT 0, saved_at INTEGER NOT NULL, fetched_at INTEGER);
+      CREATE TABLE tags (id TEXT PRIMARY KEY NOT NULL, name TEXT NOT NULL, parent_id TEXT REFERENCES tags(id) ON DELETE CASCADE,
+        color TEXT NOT NULL, created_at INTEGER NOT NULL);
+      CREATE TABLE post_tags (post_id TEXT NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+        tag_id TEXT NOT NULL REFERENCES tags(id) ON DELETE CASCADE, PRIMARY KEY (post_id, tag_id));
+      CREATE TABLE meta (key TEXT PRIMARY KEY NOT NULL, value TEXT);
+      INSERT INTO meta VALUES ('schema_version', '1');
+      INSERT INTO tags VALUES ('fan', '追星', NULL, 'rose', 1);
+      INSERT INTO posts (id, code, url, author, caption, status, saved_at) VALUES ('old', 'OLD', 'u', 'a', '舊的', 'ready', 5);
+      INSERT INTO post_tags VALUES ('old', 'fan');
+    `);
+    const repo = createSqlRepo(driver);
+    await repo.init();
+    await repo.init(); // a second launch must not try to add the column again
+    const [old] = await repo.listPosts();
+    assert.equal(old.note, '');
+    assert.deepEqual(old.tagIds, ['fan']);
+    await repo.updatePost('old', { note: '升級後的筆記' });
+    assert.equal((await repo.findByCode('OLD')).note, '升級後的筆記');
+    await repo.insertRule({ id: 'r', kind: 'author', value: 'a', tagId: 'fan', createdAt: 1 });
+    await repo.deleteTag('fan');
+    assert.deepEqual(await repo.listRules(), []);
+    assert.equal(await repo.getMeta('schema_version'), String(SCHEMA_VERSION));
+  });
+});

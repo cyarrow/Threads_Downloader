@@ -15,7 +15,7 @@ const posts = [
 ];
 
 test('makeBackup drops local cover paths and unfinished placeholders', () => {
-  const b = makeBackup(posts, tags, 9);
+  const b = makeBackup(posts, tags, [], 9);
   assert.equal(b.exportedAt, 9);
   assert.equal(b.posts.length, 1);
   assert.equal('cover' in b.posts[0], false);
@@ -49,4 +49,54 @@ test('planImport reuses tags by name, creates missing ones, and skips saved post
 
 test('backupFileName is dated', () => {
   assert.equal(backupFileName(new Date(2026, 9, 30).getTime()), 'threads-collection-20261030.json');
+});
+
+test('version 2 carries notes and rules; planImport maps rules to the new tag ids and skips known ones', () => {
+  const withNote = [{ ...posts[0], note: '為什麼收藏：燈光' }, { ...posts[0], id: 'p3', code: 'C3', note: '' }];
+  const rules = [
+    { id: 'r1', kind: 'author', value: 'x', tagId: 'b', createdAt: 3 },
+    { id: 'r2', kind: 'keyword', value: '巡演', tagId: 'a', createdAt: 4 },
+    { id: 'r3', kind: 'keyword', value: '舊', tagId: 'gone', createdAt: 5 },
+  ];
+  const b = makeBackup(withNote, tags, rules, 9);
+  assert.equal(b.version, 2);
+  assert.equal(b.posts[0].note, '為什麼收藏：燈光');
+  assert.equal('note' in b.posts[1], false, 'no empty notes in the file');
+  assert.deepEqual(b.rules[0], { kind: 'author', value: 'x', tagId: 'b', createdAt: 3 });
+
+  const existing = {
+    tags: [{ id: 'X', name: '追星', parentId: null, color: 'sky' }],
+    posts: [],
+    rules: [{ id: 'mine', kind: 'keyword', value: '巡演', tagId: 'X', createdAt: 1 }],
+  };
+  const plan = planImport(parseBackup(JSON.stringify(b)), existing, newId);
+  const child = plan.tagsToCreate[0].id;
+  assert.equal(plan.postsToInsert[0].note, '為什麼收藏：燈光');
+  assert.equal(plan.postsToInsert[1].note, '');
+  assert.deepEqual(plan.rulesToCreate.map((r) => [r.kind, r.value, r.tagId]), [['author', 'x', child]]);
+  assert.match(plan.rulesToCreate[0].id, /^r/);
+});
+
+test('an existing post without a note gets the note from the backup; one with a note keeps it', () => {
+  const b = makeBackup([{ ...posts[0], note: '備份裡的筆記' }], tags, []);
+  const plan = planImport(b, { tags, posts: [{ id: 'mine', code: 'C1', note: '' }] }, newId);
+  assert.equal(plan.skipped, 1);
+  assert.deepEqual(plan.notesToFill, [{ id: 'mine', note: '備份裡的筆記' }]);
+  const kept = planImport(b, { tags, posts: [{ id: 'mine', code: 'C1', note: '我的' }] }, newId);
+  assert.deepEqual(kept.notesToFill, []);
+});
+
+test('version 1 backups (no notes, no rules) still import', () => {
+  const v1 = {
+    app: 'threads-downloader',
+    version: 1,
+    exportedAt: 1,
+    tags: [{ id: 'a', name: '追星', parentId: null, color: 'rose', createdAt: 1 }],
+    posts: [{ code: 'OLD', url: 'u', author: 'x', caption: 'hi', media: [], featured: false, downloaded: true, savedAt: 2, tagIds: ['a'] }],
+  };
+  const plan = planImport(parseBackup(JSON.stringify(v1)), { tags: [], posts: [] }, newId);
+  assert.equal(plan.postsToInsert.length, 1);
+  assert.equal(plan.postsToInsert[0].note, '');
+  assert.deepEqual(plan.rulesToCreate, []);
+  assert.deepEqual(plan.notesToFill, []);
 });

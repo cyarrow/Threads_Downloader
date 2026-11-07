@@ -28,7 +28,7 @@ function expand(selected, index) {
 }
 
 // Union across selected tags; UNCATEGORIZED matches posts without tags.
-// `query` matches author, caption or a tag name, case-insensitively.
+// `query` matches author, caption, the user's note or a tag name, case-insensitively.
 export function filterPosts(posts, selected, query, index) {
   const ids = expand(selected, index);
   const q = query.trim().toLowerCase();
@@ -42,6 +42,7 @@ export function filterPosts(posts, selected, query, index) {
     return (
       p.author.toLowerCase().includes(q) ||
       (p.caption || '').toLowerCase().includes(q) ||
+      (p.note || '').toLowerCase().includes(q) ||
       p.tagIds.some((id) => index.byId[id]?.name.toLowerCase().includes(q))
     );
   });

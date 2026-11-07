@@ -10,6 +10,7 @@ import { playbackFocus, playingAfterPageChange } from '../playback';
 import { tagHue, tagLabel } from '../tagModel';
 import { TOUCH, icon, space, useCollectionTheme } from '../tokens';
 import { IconButton, PrimaryButton, SecondaryButton, TagChip } from './base';
+import { NoteSection } from './Notes';
 import { PRINT_INSET, PhotoBack, Print, TagKicker } from './theme';
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
@@ -176,7 +177,9 @@ export function MediaPager({ media, width, placeholder, onStale, active = true, 
 // Detail page, laid out like a magazine article page: media, then a kicker (tag
 // square + 大標籤 › 小標籤), the post in WenKai, a byline with the saved date, and
 // the tags — hairline rules between sections instead of boxes. Everything the
-// long-press menu offers also has a visible button here.
+// long-press menu offers also has a visible button here. 筆記 (the user's note)
+// sits between the byline and the tags; tapping it opens the note sheet
+// (onAction('note')). ⋮ also offers 「為 @author 建立規則」 (onAction('rule')).
 // `onStale` is called when a media link fails (links expire) so the post gets re-read.
 export function PostDetail({ post, index, onBack, onAction, onStale }) {
   const t = useCollectionTheme();
@@ -207,7 +210,7 @@ export function PostDetail({ post, index, onBack, onAction, onStale }) {
         <Text style={[t.font.kicker, styles.topTitle, { color: t.mutedForeground }]} numberOfLines={1} accessibilityRole="header">
           {post.author ? `@${post.author}` : 'Threads 貼文'}
         </Text>
-        <IconButton name="ellipsis-vertical" label="更多：在 Threads 開啟、刪除" onPress={act('more')} />
+        <IconButton name="ellipsis-vertical" label="更多：在 Threads 開啟、建立規則、刪除" onPress={act('more')} />
       </View>
 
       <ScrollView contentContainerStyle={{ paddingBottom: space.xxl }}>
@@ -258,6 +261,8 @@ export function PostDetail({ post, index, onBack, onAction, onStale }) {
             )}
             <Text style={[t.font.caption, styles.dateline, { color: t.mutedForeground }]}>收藏於 {formatDate(post.savedAt)}</Text>
           </View>
+
+          <NoteSection note={post.note} onEdit={act('note')} ruleStyle={rule} />
 
           <View style={[styles.section, rule]}>
             <View style={styles.sectionHeader}>

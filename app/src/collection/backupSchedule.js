@@ -21,15 +21,22 @@ function hash(str) {
 // Fingerprint of what the user curated: which posts, their tags/featured state and
 // the tags themselves. Media links are left out on purpose — background refreshes
 // renew them all the time, and that alone shouldn't count as a change.
-export function collectionMarker(posts, tags) {
+// Notes and 自動標籤規則 count too; they only join the fingerprint when present,
+// so a collection without them keeps the marker it had before they existed.
+export function collectionMarker(posts, tags, rules = []) {
+  const byKey = (a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0);
   const p = posts
     .filter((x) => x.code)
-    .map((x) => [x.code, x.author || '', x.caption || '', x.featured ? 1 : 0, x.downloaded ? 1 : 0, x.savedAt || 0, [...(x.tagIds || [])].sort()])
-    .sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+    .map((x) => {
+      const row = [x.code, x.author || '', x.caption || '', x.featured ? 1 : 0, x.downloaded ? 1 : 0, x.savedAt || 0, [...(x.tagIds || [])].sort()];
+      return x.note ? [...row, x.note] : row;
+    })
+    .sort(byKey);
   const t = tags
     .map((x) => [x.id, x.name, x.parentId || '', x.color || ''])
-    .sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
-  return `${p.length}.${t.length}.${hash(JSON.stringify([p, t]))}`;
+    .sort(byKey);
+  const r = rules.map((x) => [`${x.kind}:${x.value}:${x.tagId}`]).sort(byKey);
+  return `${p.length}.${t.length}.${hash(JSON.stringify(r.length ? [p, t, r] : [p, t]))}`;
 }
 
 export function sameLocalDay(a, b) {

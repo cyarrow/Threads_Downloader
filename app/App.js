@@ -19,6 +19,9 @@ import { useCollectionTheme } from './src/collection/tokens';
 import { pickBackup, shareBackup } from './src/collection/backupIO';
 import { pickRediscover } from './src/collection/rediscover';
 import { suggestTags } from './src/collection/suggest';
+import { withRuleTags } from './src/collection/tagRules';
+import { NoteSheet } from './src/collection/ui/Notes';
+import { RuleEditSheet, RulesPage, ruleResultToast } from './src/collection/ui/TagRules';
 import { RediscoverCard, TagManager } from './src/collection/ui/Phase2';
 import { SecondaryButton } from './src/collection/ui/base';
 import { buzz } from './src/collection/ui/base';
@@ -114,6 +117,13 @@ function Home({ notice }) {
   const downloadAfterLogin = useRef(false);
   const hideToast = useCallback(() => setToast(null), []);
 
+  // --- 自動標籤規則 + 個人筆記 (ui/TagRules.js, ui/Notes.js) ---
+  const [sheetNote, setSheetNote] = useState(''); // 「加一句筆記…」 in the save sheet
+  const touchedTags = useRef(new Set()); // tags toggled by hand in the open save sheet
+  const [rulesOpen, setRulesOpen] = useState(false); // 設定 › 自動標籤規則
+  const [ruleDraft, setRuleDraft] = useState(null); // 「為 @author 建立規則」 from a post
+  const [noteFor, setNoteFor] = useState(null); // post whose note sheet is open
+
   const visible = useMemo(() => filterPosts(c.posts, filter, appliedQuery, index), [c.posts, filter, appliedQuery, index]);
   const detail = detailId && c.posts.find((p) => p.id === c.resolveId(detailId));
   const sheetPost = sheet && c.posts.find((p) => p.id === c.resolveId(sheet.postId));
@@ -121,6 +131,18 @@ function Home({ notice }) {
     () => (sheetPost?.status === 'ready' ? suggestTags(sheetPost, c.posts, index) : []),
     [sheetPost, c.posts, index],
   );
+  // Rules run when a newly saved post finishes loading (store.js). If its save
+  // sheet is still open, the tags they added show there as picked, with the
+  // reason, unless the user already toggled that tag by hand. The row is drawn
+  // from the start (when the user has rules) so nothing moves when they arrive.
+  const sheetHits = sheet?.mode === 'new' && sheetPost ? c.ruleHits[sheetPost.id] : undefined;
+  useEffect(() => {
+    if (sheetHits) setSheetTags((list) => withRuleTags(list, sheetHits, touchedTags.current));
+  }, [sheetHits]);
+  const ruleSlot =
+    sheet?.mode === 'new' && c.rules.length
+      ? { status: sheetPost?.status === 'loading' ? 'loading' : sheetPost?.status === 'failed' ? 'failed' : 'ready', hits: sheetHits || [] }
+      : null;
   const untagged = untaggedCount(c.posts);
   // 「N 年前的今天」/「好久沒看」 stay on the wall; its 隨機翻翻 now opens the 翻翻 tab.
   const rediscover = useMemo(() => {
@@ -179,6 +201,8 @@ function Home({ notice }) {
     // tag sheet is up): the deck must not treat this post's tags as its card's.
     afterSheet.current = null;
     setSheetTags(existing ? existing.tagIds : []);
+    setSheetNote('');
+    touchedTags.current = new Set();
     // Shares open the compact 快速面板 unless the user turned it off in settings.
     setSheet({ mode: existing ? 'edit' : 'new', postId: res.id, fromShare, quick: fromShare && !existing && c.quickSave });
     if (existing) setToast({ message: '這篇已經收藏過，可以直接改標籤' });
@@ -246,6 +270,7 @@ function Home({ notice }) {
     // A shared link that turned out to be an already-saved card: add to its tags, don't replace them.
     const prior = mode === 'new' && id !== postId ? c.posts.find((p) => p.id === id)?.tagIds || [] : [];
     await c.setPostTags(id, mergeTags(prior, tags));
+    if (mode === 'new' && sheetNote.trim()) await c.setNote(id, sheetNote, { merge: true });
     const willDownload = !closed && mode === 'new' && c.downloadToo;
     if (willDownload) requestDownload(id, fromShare);
     const names = tags.map((tid) => index.byId[tid]).filter(Boolean).map((tg) => tagLabel(tg, index.byId));
@@ -287,6 +312,12 @@ function Home({ notice }) {
         break;
       case 'more':
         setMenuPost(post);
+        break;
+      case 'note':
+        setNoteFor(post.id);
+        break;
+      case 'rule':
+        setRuleDraft({ kind: 'author', value: post.author, tagId: post.tagIds[0] || null });
         break;
       case 'delete':
         c.remove(post.id);
@@ -567,7 +598,10 @@ function Home({ notice }) {
         loading={sheetPost?.status === 'loading'}
         index={index}
         selected={sheetTags}
-        onToggle={(id) => setSheetTags((list) => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id]))}
+        onToggle={(id) => {
+          touchedTags.current.add(id);
+          setSheetTags((list) => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id]));
+        }}
         onCreateTag={c.createTag}
         recentIds={c.recent}
         suggestions={suggestions}
@@ -575,9 +609,37 @@ function Home({ notice }) {
         onDownloadToo={c.setDownloadToo}
         onDone={() => finishSheet()}
         onClose={() => finishSheet({ closed: true })}
-        onQuickPick={(id) => finishSheet({ tags: [id] })}
+        onQuickPick={(id) => finishSheet({ tags: mergeTags([id], sheetTags) })}
         onExpand={() => setSheet((s) => s && { ...s, quick: false })}
+        ruleSlot={ruleSlot}
+        note={sheetNote}
+        onNote={setSheetNote}
       />
+      {rulesOpen && <RulesPage index={index} onClose={() => setRulesOpen(false)} />}
+      {ruleDraft && (
+        <RuleEditSheet
+          draft={ruleDraft}
+          index={index}
+          onDone={(result) => {
+            setRuleDraft(null);
+            const next = ruleResultToast(result, index, c.unapplyRule);
+            if (next) setToast(next);
+          }}
+        />
+      )}
+      {noteFor && (
+        <NoteSheet
+          key={noteFor}
+          note={c.posts.find((p) => p.id === noteFor)?.note}
+          onDone={(text) => {
+            const p = c.posts.find((x) => x.id === noteFor);
+            setNoteFor(null);
+            if (!p || text === (p.note || '')) return;
+            c.setNote(p.id, text);
+            setToast({ message: text ? '筆記已儲存' : '已清除筆記' });
+          }}
+        />
+      )}
       <AddLinkSheet
         visible={addOpen}
         onClose={() => setAddOpen(false)}
@@ -604,6 +666,11 @@ function Home({ notice }) {
           setSettingsOpen(false);
           setTagsOpen(true);
         }}
+        onRules={() => {
+          setSettingsOpen(false);
+          setRulesOpen(true);
+        }}
+        rulesCount={c.rules.length}
         onExport={exportNow}
         onImport={importNow}
         onCheckUpdate={checkNow}
@@ -617,6 +684,7 @@ function Home({ notice }) {
         <TagManager
           posts={c.posts}
           index={index}
+          rules={c.rules}
           onClose={() => setTagsOpen(false)}
           onRename={c.renameTag}
           onRecolor={c.recolorTag}
@@ -626,7 +694,7 @@ function Home({ notice }) {
       )}
       <LoginSheet visible={loginOpen} onClose={() => setLoginOpen(false)} onLoggedIn={onLoggedIn} />
       <SafeAreaInsetsContext.Provider value={toastInsets}>
-        <Toast toast={toast} onUndo={() => { c.undoRemove(); setToast(null); }} onHide={hideToast} />
+        <Toast toast={toast} onUndo={() => { if (toast?.onUndo) toast.onUndo(); else c.undoRemove(); setToast(null); }} onHide={hideToast} />
       </SafeAreaInsetsContext.Provider>
       <StatusBar style={t.scheme === 'dark' ? 'light' : 'dark'} />
     </View>

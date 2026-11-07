@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { formatImprint } from '../../themes';
 import { useCollectionTheme } from '../../tokens';
 
@@ -25,7 +26,8 @@ function Rules({ lineHeight, color, height }) {
 //                   ('26 11  2 · @author) at the bottom.
 // `textStyle` picks the type (default t.font.quote); `numberOfLines` truncates;
 // `selectable` and `large` (wider margins, bigger 「) for the detail page.
-export function PhotoBack({ hue, text, savedAt, author, textStyle, numberOfLines, selectable, large, style }) {
+// `note` (底片 only): the user's note, written in pencil above the date line.
+export function PhotoBack({ hue, text, savedAt, author, textStyle, numberOfLines, selectable, large, note, style }) {
   const t = useCollectionTheme();
   const s = t.tag(hue || 'slate');
   const type = textStyle || t.font.quote;
@@ -53,6 +55,14 @@ export function PhotoBack({ hue, text, savedAt, author, textStyle, numberOfLines
           {text}
         </Text>
       </View>
+      {!!note && (
+        <View style={styles.note} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+          <Ionicons name="pencil" size={11} color={s.onPaperMuted} />
+          <Text style={[t.font.hand, styles.noteText, { color: s.onPaperMuted }]} numberOfLines={1}>
+            {note}
+          </Text>
+        </View>
+      )}
       {(!!date || !!author) && (
         <View style={styles.dateline}>
           {!!date && <Text style={[t.font.imprint, { color: s.onPaperMuted }]} maxFontSizeMultiplier={1.3}>{date.trim()}{author ? ' ·' : ''}</Text>}
@@ -84,4 +94,6 @@ const styles = StyleSheet.create({
   // Date first; a long @author moves to its own line rather than cutting the date.
   dateline: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 4 },
   author: { flexShrink: 1 },
+  note: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  noteText: { flexShrink: 1 },
 });

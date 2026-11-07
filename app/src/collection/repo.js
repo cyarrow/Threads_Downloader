@@ -6,10 +6,13 @@
 //
 // Post: { id, code, url, author, caption, media: [{ type, url, poster, ratio }],
 //         cover, status: 'loading' | 'ready' | 'failed' | 'sourceDeleted',
-//         error, featured, downloaded, savedAt, fetchedAt, tagIds: [] }
+//         error, featured, downloaded, savedAt, fetchedAt, note, tagIds: [] }
+//         note: the user's own words (''  = none; NULL in SQLite), see noteModel.js
 // Tag:  { id, name, parentId, color, createdAt }
+// Rule: { id, kind: 'author' | 'keyword', value, tagId, createdAt } (自動標籤規則, tagRules.js)
 
-export const SCHEMA_VERSION = 1;
+// 1: posts, tags, post_tags, meta. 2: posts.note + tag_rules.
+export const SCHEMA_VERSION = 2;
 
 const SCHEMA = `
 PRAGMA foreign_keys = ON;
@@ -26,7 +29,8 @@ CREATE TABLE IF NOT EXISTS posts (
   featured INTEGER NOT NULL DEFAULT 0,
   downloaded INTEGER NOT NULL DEFAULT 0,
   saved_at INTEGER NOT NULL,
-  fetched_at INTEGER
+  fetched_at INTEGER,
+  note TEXT
 );
 CREATE TABLE IF NOT EXISTS tags (
   id TEXT PRIMARY KEY NOT NULL,
@@ -42,7 +46,19 @@ CREATE TABLE IF NOT EXISTS post_tags (
 );
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY NOT NULL, value TEXT);
 CREATE INDEX IF NOT EXISTS posts_saved_at ON posts (saved_at DESC);
+CREATE TABLE IF NOT EXISTS tag_rules (
+  id TEXT PRIMARY KEY NOT NULL,
+  kind TEXT NOT NULL,
+  value TEXT NOT NULL,
+  tag_id TEXT NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+  created_at INTEGER NOT NULL,
+  UNIQUE (kind, value, tag_id)
+);
 `;
+
+// Columns added after a table first shipped. CREATE TABLE IF NOT EXISTS leaves an
+// existing table as it was, so init() adds any of these that are missing.
+const ADDED_COLUMNS = [{ table: 'posts', column: 'note', type: 'TEXT' }];
 
 const POST_COLUMNS = {
   code: 'code',
@@ -57,11 +73,13 @@ const POST_COLUMNS = {
   downloaded: 'downloaded',
   savedAt: 'saved_at',
   fetchedAt: 'fetched_at',
+  note: 'note',
 };
 
 function toColumn(key, value) {
   if (key === 'media') return JSON.stringify(value || []);
   if (key === 'featured' || key === 'downloaded') return value ? 1 : 0;
+  if (key === 'note') return value ? String(value) : null;
   return value === undefined ? null : value;
 }
 
@@ -80,6 +98,7 @@ function rowToPost(row, tagIds) {
     downloaded: !!row.downloaded,
     savedAt: row.saved_at,
     fetchedAt: row.fetched_at,
+    note: row.note || '',
     tagIds: tagIds || [],
   };
 }
@@ -91,6 +110,8 @@ const rowToTag = (row) => ({
   color: row.color,
   createdAt: row.created_at,
 });
+
+const rowToRule = (row) => ({ id: row.id, kind: row.kind, value: row.value, tagId: row.tag_id, createdAt: row.created_at });
 
 export function createSqlRepo(db) {
   const insertPost = async (post) => {
@@ -107,7 +128,14 @@ export function createSqlRepo(db) {
   return {
     async init() {
       await db.execAsync(SCHEMA);
-      await db.runAsync('INSERT OR IGNORE INTO meta (key, value) VALUES (?, ?)', ['schema_version', String(SCHEMA_VERSION)]);
+      for (const { table, column, type } of ADDED_COLUMNS) {
+        const cols = await db.getAllAsync(`PRAGMA table_info(${table})`);
+        if (!cols.some((c) => c.name === column)) await db.execAsync(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
+      }
+      await db.runAsync(
+        'INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+        ['schema_version', String(SCHEMA_VERSION)],
+      );
     },
 
     async listPosts() {
@@ -175,13 +203,43 @@ export function createSqlRepo(db) {
     // Deletes a tag (and, for a parent, its children); posts just lose those tags.
     deleteTag: (id) => db.runAsync('DELETE FROM tags WHERE id = ? OR parent_id = ?', [id, id]),
 
-    // Moves every post tagged `fromId` to `toId`, then deletes `fromId`.
+    // Moves every post tagged `fromId` to `toId`, then deletes `fromId`. Rules
+    // follow the tag; one that would duplicate a rule `toId` already has goes
+    // away with `fromId` (ON DELETE CASCADE).
     mergeTag: (fromId, toId) =>
       db.withTransactionAsync(async () => {
         await db.runAsync('INSERT OR IGNORE INTO post_tags (post_id, tag_id) SELECT post_id, ? FROM post_tags WHERE tag_id = ?', [toId, fromId]);
+        await db.runAsync('UPDATE OR IGNORE tag_rules SET tag_id = ? WHERE tag_id = ?', [toId, fromId]);
         await db.runAsync('UPDATE tags SET parent_id = ? WHERE parent_id = ?', [toId, fromId]);
         await db.runAsync('DELETE FROM tags WHERE id = ?', [fromId]);
       }),
+
+    // --- 自動標籤規則 ---
+    async listRules() {
+      const rows = await db.getAllAsync('SELECT * FROM tag_rules ORDER BY created_at ASC');
+      return rows.map(rowToRule);
+    },
+
+    insertRule: (rule) =>
+      db.runAsync('INSERT INTO tag_rules (id, kind, value, tag_id, created_at) VALUES (?, ?, ?, ?, ?)', [
+        rule.id,
+        rule.kind,
+        rule.value,
+        rule.tagId,
+        rule.createdAt,
+      ]),
+
+    async updateRule(id, patch) {
+      const cols = { kind: 'kind', value: 'value', tagId: 'tag_id' };
+      const keys = Object.keys(patch).filter((k) => cols[k]);
+      if (!keys.length) return;
+      await db.runAsync(`UPDATE tag_rules SET ${keys.map((k) => `${cols[k]} = ?`).join(', ')} WHERE id = ?`, [
+        ...keys.map((k) => patch[k]),
+        id,
+      ]);
+    },
+
+    deleteRule: (id) => db.runAsync('DELETE FROM tag_rules WHERE id = ?', [id]),
 
     async getMeta(key) {
       const row = await db.getFirstAsync('SELECT value FROM meta WHERE key = ?', [key]);
@@ -199,8 +257,10 @@ export function createSqlRepo(db) {
 export function createMemoryRepo() {
   let posts = [];
   let tags = [];
+  let rules = [];
   const meta = {};
-  const clone = (p) => ({ ...p, media: [...(p.media || [])], tagIds: [...(p.tagIds || [])] });
+  const clone = (p) => ({ ...p, note: p.note || '', media: [...(p.media || [])], tagIds: [...(p.tagIds || [])] });
+  const sameRule = (a, b) => a.kind === b.kind && a.value === b.value && a.tagId === b.tagId;
 
   return {
     async init() {},
@@ -237,12 +297,29 @@ export function createMemoryRepo() {
       const gone = new Set(tags.filter((t) => t.id === id || t.parentId === id).map((t) => t.id));
       tags = tags.filter((t) => !gone.has(t.id));
       posts = posts.map((p) => ({ ...p, tagIds: p.tagIds.filter((x) => !gone.has(x)) }));
+      rules = rules.filter((r) => !gone.has(r.tagId));
     },
     async mergeTag(fromId, toId) {
       posts = posts.map((p) =>
         p.tagIds.includes(fromId) ? { ...p, tagIds: [...new Set(p.tagIds.filter((x) => x !== fromId).concat(toId))] } : p,
       );
       tags = tags.filter((t) => t.id !== fromId).map((t) => (t.parentId === fromId ? { ...t, parentId: toId } : t));
+      rules = rules
+        .map((r) => (r.tagId === fromId && !rules.some((o) => sameRule(o, { ...r, tagId: toId })) ? { ...r, tagId: toId } : r))
+        .filter((r) => r.tagId !== fromId);
+    },
+    listRules: async () => [...rules].sort((a, b) => a.createdAt - b.createdAt).map((r) => ({ ...r })),
+    async insertRule(rule) {
+      if (rules.some((r) => r.id === rule.id || sameRule(r, rule))) throw new Error('UNIQUE constraint failed');
+      if (!tags.some((t) => t.id === rule.tagId)) throw new Error('FOREIGN KEY constraint failed');
+      rules.push({ id: rule.id, kind: rule.kind, value: rule.value, tagId: rule.tagId, createdAt: rule.createdAt });
+    },
+    async updateRule(id, patch) {
+      const known = Object.keys(patch).filter((k) => ['kind', 'value', 'tagId'].includes(k));
+      rules = rules.map((r) => (r.id === id ? { ...r, ...Object.fromEntries(known.map((k) => [k, patch[k]])) } : r));
+    },
+    async deleteRule(id) {
+      rules = rules.filter((r) => r.id !== id);
     },
     getMeta: async (key) => (key in meta ? meta[key] : null),
     async setMeta(key, value) {

@@ -76,11 +76,15 @@ export function IconButton({ name, label, onPress, color, size = icon.lg, disabl
 // Selected chips fill with ink and add a checkmark (colour is never the only signal).
 // variant: 'display' (read-only, compact) | 'choice' (selectable).
 // `neutral` chips (全部, +N, 新增) have no colour square.
-export function TagChip({ label, hue, selected, onPress, variant = 'choice', neutral, iconName, trailingIcon, a11yLabel, expanded }) {
+// `steady`: the marker sits in a box as wide as the ✓, so selecting never changes
+// the chip's width (pickers where a chip can be selected for the user — 自動標籤規則 —
+// must not reflow the chips around it).
+export function TagChip({ label, hue, selected, onPress, variant = 'choice', neutral, iconName, trailingIcon, a11yLabel, expanded, steady }) {
   const t = useCollectionTheme();
   const display = variant === 'display';
   const on = selected && !display;
   const text = on ? t.background : t.foreground;
+  const marker = steady && !neutral && !display;
   const content = (
     <View
       style={[
@@ -89,8 +93,16 @@ export function TagChip({ label, hue, selected, onPress, variant = 'choice', neu
         on ? { backgroundColor: t.foreground, borderColor: t.foreground } : { borderColor: display ? t.border : t.outline },
       ]}
     >
-      {on && <Ionicons name="checkmark" size={icon.sm} color={text} />}
-      {!neutral && !on && <TagMark hue={hue} size={display ? 'sm' : 'md'} />}
+      {marker ? (
+        <View style={styles.steadyMark}>
+          {on ? <Ionicons name="checkmark" size={icon.sm} color={text} /> : <TagMark hue={hue} size="md" />}
+        </View>
+      ) : (
+        <>
+          {on && <Ionicons name="checkmark" size={icon.sm} color={text} />}
+          {!neutral && !on && <TagMark hue={hue} size={display ? 'sm' : 'md'} />}
+        </>
+      )}
       {iconName && <Ionicons name={iconName} size={icon.sm} color={text} />}
       <Text style={[display ? t.font.caption : t.font.label, { color: text }]} numberOfLines={1}>
         {label}
@@ -105,6 +117,7 @@ export function TagChip({ label, hue, selected, onPress, variant = 'choice', neu
       hitSlop={{ top: (TOUCH - 36) / 2, bottom: (TOUCH - 36) / 2 }}
       accessibilityRole={expanded === undefined ? 'checkbox' : 'button'}
       accessibilityState={expanded === undefined ? { checked: !!selected } : { expanded, selected: !!selected }}
+      aria-checked={expanded === undefined ? !!selected : undefined} // react-native-web reads only the aria-* form
       accessibilityLabel={a11yLabel || label}
       style={({ pressed }) => ({ opacity: pressed ? 0.75 : 1 })}
     >
@@ -205,6 +218,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
   },
+  steadyMark: { width: icon.sm, alignItems: 'center', justifyContent: 'center' },
   chipDisplay: {
     height: 24,
     paddingHorizontal: space.sm,

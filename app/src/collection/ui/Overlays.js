@@ -40,6 +40,7 @@ export function CardMenu({ post, onClose, onAction }) {
           <MenuRow iconName="download-outline" label={post.downloaded ? '再次下載' : '下載到相簿'} onPress={act('download')} />
         )}
         <MenuRow iconName="open-outline" label="在 Threads 開啟" onPress={act('open')} />
+        {!!post.author && <MenuRow iconName="color-wand-outline" label={`為 @${post.author} 建立規則`} onPress={act('rule')} />}
         {/* The destructive action stands apart, below a gap after the last rule. */}
         <View style={styles.divider} />
         <MenuRow iconName="trash-outline" label="刪除收藏" danger onPress={act('delete')} last />

@@ -44,6 +44,9 @@ test('collectionMarker changes with curation, not with refreshed media links', (
   assert.notEqual(collectionMarker([post('A', { featured: true }), post('B')], tags), base);
   assert.notEqual(collectionMarker([post('A')], tags), base);
   assert.notEqual(collectionMarker([post('A'), post('B')], [{ ...tags[0], name: '吃' }]), base);
+  assert.equal(collectionMarker([post('A', { note: '' }), post('B')], tags, []), base, 'no note, no rules: same as before');
+  assert.notEqual(collectionMarker([post('A', { note: '想去' }), post('B')], tags), base, 'a note counts');
+  assert.notEqual(collectionMarker([post('A'), post('B')], tags, [{ kind: 'author', value: 'a', tagId: 't1' }]), base, 'a rule counts');
 });
 
 test('shouldAutoBackup: once per day, only after changes, not right after a failure', () => {

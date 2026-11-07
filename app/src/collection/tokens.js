@@ -61,6 +61,8 @@ export const font = {
   caption: { fontSize: 12, lineHeight: 16, fontWeight: '500' },
   kicker: { fontSize: 12, lineHeight: 16, fontWeight: '600', letterSpacing: 1.5 },
   imprint: { fontSize: 12, lineHeight: 14, letterSpacing: 0.5, fontFamily: IMPRINT_FONT },
+  // The user's own note written by hand: on a 底片 print's edge or a photo's back.
+  hand: { fontSize: 13, lineHeight: 18, fontFamily: BRAND_FONT },
 };
 
 // 底片 type: WenKai Bold stands in for a serif in titles (Android's `serif` only

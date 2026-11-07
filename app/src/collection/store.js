@@ -12,6 +12,7 @@ import {
   pushRecent,
 } from './collectionModel';
 import { makeBackup, parseBackup, planImport } from './backup';
+import { applyTagDiff, removePosts, restorePosts } from './batch';
 import { useAutoBackup } from './autoBackup';
 import { deleteCover, saveCover } from './covers';
 import { usePostFetcher } from './fetcher';
@@ -20,6 +21,8 @@ import { DEFAULT_THEME, normalizeThemeId } from './themes';
 import { ThemeProvider } from './tokens';
 
 const CollectionContext = createContext(null);
+
+const sameTags = (a, b) => a.length === b.length && a.every((id) => b.includes(id));
 
 // How many old/migrated cards to refresh in the background per launch.
 const BACKGROUND_REFRESH_MAX = 30;
@@ -297,35 +300,68 @@ export function CollectionProvider({ children, onNotice }) {
     return ids.length;
   }, [retry]);
 
-  const remove = useCallback(
-    async (id) => {
-      const post = postsRef.current.find((p) => p.id === id);
-      if (!post) return;
+  // Deletes one or many cards. The last delete (all its cards) can be undone
+  // with undoRemove until the next delete or UNDO_MS; covers stay on disk until then.
+  // Returns how many cards were removed.
+  const removeMany = useCallback(
+    async (ids) => {
+      const { kept, removed } = removePosts(postsRef.current, ids);
+      if (!removed.length) return 0;
       if (deleted.current) {
         clearTimeout(deleted.current.timer);
-        deleteCover(deleted.current.post.cover);
+        deleted.current.removed.forEach((r) => deleteCover(r.post.cover));
       }
       const timer = setTimeout(() => {
-        deleteCover(post.cover);
+        removed.forEach((r) => deleteCover(r.post.cover));
         deleted.current = null;
       }, UNDO_MS);
-      deleted.current = { post, index: postsRef.current.indexOf(post), timer };
-      setPosts((list) => list.filter((p) => p.id !== id));
-      await repo.current.deletePost(id);
+      deleted.current = { removed, timer };
+      setPosts(() => kept);
+      for (const { post } of removed) await repo.current.deletePost(post.id);
+      return removed.length;
     },
     [setPosts],
   );
+
+  const remove = useCallback((id) => removeMany([id]), [removeMany]);
 
   const undoRemove = useCallback(async () => {
     const d = deleted.current;
     if (!d) return;
     clearTimeout(d.timer);
     deleted.current = null;
-    // The same post may have been saved again in the meantime; then there's nothing to restore.
-    if (d.post.code && postsRef.current.some((p) => p.code === d.post.code)) return;
-    setPosts((list) => [...list.slice(0, d.index), d.post, ...list.slice(d.index)]);
-    await repo.current.insertPost(d.post);
+    // A post may have been saved again in the meantime; then there's nothing to restore for it.
+    const back = d.removed.filter((r) => !(r.post.code && postsRef.current.some((p) => p.code === r.post.code)));
+    setPosts((list) => restorePosts(list, back));
+    for (const { post } of back) await repo.current.insertPost(post);
   }, [setPosts]);
+
+  // --- 批次選取: edit many cards at once ---
+  // `diff`: { add, remove } tag ids from the tri-state picker (batch.js); posts
+  // whose tags don't actually change aren't written. Returns how many changed.
+  const setTagsMany = useCallback(
+    async (ids, diff) => {
+      const before = postsRef.current;
+      const after = applyTagDiff(before, ids, diff).map((p, i) => (sameTags(p.tagIds, before[i].tagIds) ? before[i] : p));
+      const changed = after.filter((p, i) => p !== before[i]);
+      setPosts(() => after);
+      for (const p of changed) await repo.current.setPostTags(p.id, p.tagIds);
+      if (diff.add.length) {
+        const next = pushRecent(recent, diff.add);
+        setRecent(next);
+        await repo.current.setMeta('recent', JSON.stringify(next));
+      }
+      return changed.length;
+    },
+    [recent, setPosts],
+  );
+
+  const setFeaturedMany = useCallback(
+    async (ids, featured) => {
+      for (const id of ids) await setFeatured(id, featured);
+    },
+    [setFeatured],
+  );
 
   // Re-reads a saved post (fresh media links) without turning its card into a skeleton.
   const refresh = useCallback((id) => runFetch(id), [runFetch]);
@@ -419,7 +455,10 @@ export function CollectionProvider({ children, onNotice }) {
       retryLoginFailures,
       retryAllFailed,
       remove,
+      removeMany,
       undoRemove,
+      setTagsMany,
+      setFeaturedMany,
       renameTag,
       recolorTag,
       deleteTag,
@@ -429,7 +468,7 @@ export function CollectionProvider({ children, onNotice }) {
       autoBackup,
     }),
     [ready, posts, tags, recent, downloadToo, fetcher.webView, addFromUrl, resolveId, setPostTags, createTag,
-      setDownloadToo, toggleFeatured, setFeatured, quickSave, setQuickSave, markDownloaded, retry, refresh, retryLoginFailures, retryAllFailed, remove, undoRemove, renameTag, recolorTag, deleteTag, mergeTag,
+      setDownloadToo, toggleFeatured, setFeatured, quickSave, setQuickSave, markDownloaded, retry, refresh, retryLoginFailures, retryAllFailed, remove, removeMany, undoRemove, setTagsMany, setFeaturedMany, renameTag, recolorTag, deleteTag, mergeTag,
       exportBackup, importBackup,
       autoBackup],
   );

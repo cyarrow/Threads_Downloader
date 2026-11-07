@@ -178,7 +178,8 @@ export function MediaPager({ media, width, placeholder, onStale, active = true, 
 // the tags — hairline rules between sections instead of boxes. Everything the
 // long-press menu offers also has a visible button here.
 // `onStale` is called when a media link fails (links expire) so the post gets re-read.
-export function PostDetail({ post, index, onBack, onAction, onStale }) {
+// `onAuthor(handle)`: the byline or the running head was tapped (author page).
+export function PostDetail({ post, index, onBack, onAction, onStale, onAuthor }) {
   const t = useCollectionTheme();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
@@ -203,10 +204,18 @@ export function PostDetail({ post, index, onBack, onAction, onStale }) {
     <View style={[styles.screen, { backgroundColor: t.background, paddingTop: insets.top }]}>
       <View style={[styles.topBar, { borderBottomColor: t.border }]}>
         <IconButton name="arrow-back" label="返回" onPress={onBack} />
-        {/* Running head: the author, quietly, like a magazine page header. */}
-        <Text style={[t.font.kicker, styles.topTitle, { color: t.mutedForeground }]} numberOfLines={1} accessibilityRole="header">
-          {post.author ? `@${post.author}` : 'Threads 貼文'}
-        </Text>
+        {/* Running head: the author, quietly, like a magazine page header. Taps open the author's page. */}
+        <Pressable
+          onPress={() => onAuthor?.(post.author)}
+          disabled={!onAuthor || !post.author}
+          accessibilityRole="header"
+          accessibilityHint={post.author ? '開啟這位作者的所有收藏' : undefined}
+          style={styles.topTitle}
+        >
+          <Text style={[t.font.kicker, { color: t.mutedForeground }]} numberOfLines={1}>
+            {post.author ? `@${post.author}` : 'Threads 貼文'}
+          </Text>
+        </Pressable>
         <IconButton name="ellipsis-vertical" label="更多：在 Threads 開啟、刪除" onPress={act('more')} />
       </View>
 
@@ -252,9 +261,19 @@ export function PostDetail({ post, index, onBack, onAction, onStale }) {
 
           <View style={[styles.byline, rule]}>
             {!!post.author && (
-              <Text style={[t.font.label, { color: t.foreground }]} numberOfLines={1}>
-                {t.theme !== 'film' && <Text style={{ color: t.mutedForeground }}>文 ／ </Text>}@{post.author}
-              </Text>
+              // ≥48dp row: 「文 ／ @handle ›」 opens the author's page.
+              <Pressable
+                onPress={() => onAuthor?.(post.author)}
+                disabled={!onAuthor}
+                accessibilityRole="button"
+                accessibilityLabel={`作者 @${post.author} 的所有收藏`}
+                style={({ pressed }) => [styles.authorLink, { opacity: pressed ? 0.6 : 1 }]}
+              >
+                <Text style={[t.font.label, styles.flex, { color: t.foreground }]} numberOfLines={1}>
+                  {t.theme !== 'film' && <Text style={{ color: t.mutedForeground }}>文 ／ </Text>}@{post.author}
+                </Text>
+                {!!onAuthor && <Ionicons name="chevron-forward" size={icon.sm} color={t.mutedForeground} />}
+              </Pressable>
             )}
             <Text style={[t.font.caption, styles.dateline, { color: t.mutedForeground }]}>收藏於 {formatDate(post.savedAt)}</Text>
           </View>
@@ -297,13 +316,14 @@ export function PostDetail({ post, index, onBack, onAction, onStale }) {
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   topBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: space.xs, borderBottomWidth: RULE },
-  topTitle: { flex: 1, marginHorizontal: space.xs },
+  topTitle: { flex: 1, marginHorizontal: space.xs, minHeight: TOUCH, justifyContent: 'center' },
   flex: { flex: 1 },
   body: { paddingHorizontal: GUTTER, paddingTop: space.lg, gap: space.md },
   // Editor's-note band: hairlines above and below instead of a filled box.
   notice: { flexDirection: 'row', gap: space.sm, paddingVertical: space.md, borderTopWidth: RULE, borderBottomWidth: RULE, alignItems: 'center' },
   print: { marginHorizontal: PRINT_MARGIN, marginTop: space.md, alignSelf: 'flex-start' },
-  byline: { borderTopWidth: RULE, paddingTop: space.md, marginTop: space.xs, gap: 2 },
+  byline: { borderTopWidth: RULE, paddingTop: space.xs, marginTop: space.xs, gap: 2 },
+  authorLink: { minHeight: TOUCH, flexDirection: 'row', alignItems: 'center', gap: space.xs },
   dateline: { letterSpacing: 1 },
   section: { borderTopWidth: RULE, marginTop: space.sm },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginRight: -space.sm },

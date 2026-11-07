@@ -1,5 +1,5 @@
 import { memo, useState } from 'react';
-import { Animated, StyleSheet, Text, View } from 'react-native';
+import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { cardStill } from '../media';
@@ -44,7 +44,9 @@ function shortDate(ts) {
 // opaque theme-coloured labels (background fill + ink / accent text), so they
 // read the same on any photo and in both schemes.
 // `likeLabel`: 「精選」 normally, 「＋ 美食」 when sorting 未分類.
-function DeckCardImpl({ post, index, likeLabel, likeIcon = 'heart', nopeLabel = '下一張', likeOpacity, nopeOpacity }) {
+// `onAuthor` / `onAuthorPressIn`: the top card's @handle is a link (the deck
+// passes them only for the card on top).
+function DeckCardImpl({ post, index, likeLabel, likeIcon = 'heart', nopeLabel = '下一張', likeOpacity, nopeOpacity, onAuthor, onAuthorPressIn }) {
   const t = useCollectionTheme();
   const film = t.printFrame;
   const tags = post.tagIds.map((id) => index.byId[id]).filter(Boolean);
@@ -133,9 +135,27 @@ function DeckCardImpl({ post, index, likeLabel, likeIcon = 'heart', nopeLabel = 
           </Text>
         )}
         <View style={styles.row}>
-          <Text style={[t.font.caption, styles.flex, { color: inkMuted }]} numberOfLines={1}>
-            @{post.author}
-          </Text>
+          {onAuthor ? (
+            // The handle opens the author's page. hitSlop grows the target to 48dp
+            // inside the info block (over the caption above and the padding below)
+            // without changing the card's layout; a drag that starts here still swipes.
+            <Pressable
+              onPressIn={onAuthorPressIn}
+              onPress={onAuthor}
+              hitSlop={{ top: 16, bottom: 16 }}
+              accessibilityRole="button"
+              accessibilityLabel={`作者 @${post.author} 的所有收藏`}
+              style={({ pressed }) => [styles.flex, { opacity: pressed ? 0.6 : 1 }]}
+            >
+              <Text style={[t.font.caption, { color: inkMuted, textDecorationLine: 'underline' }]} numberOfLines={1}>
+                @{post.author}
+              </Text>
+            </Pressable>
+          ) : (
+            <Text style={[t.font.caption, styles.flex, { color: inkMuted }]} numberOfLines={1}>
+              @{post.author}
+            </Text>
+          )}
           {/* 底片 prints say ▶ 影片 / N 張 on the photo itself. */}
           {kind && !film && (
             <View style={styles.item}>

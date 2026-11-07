@@ -14,7 +14,10 @@ import { CollectionProvider, useCollection } from './src/collection/store';
 import { mergeTags } from './src/collection/collectionModel';
 import { useBrandFont } from './src/collection/fonts';
 import { UNCATEGORIZED, filterPosts, indexTags, tagLabel, tagSummaries, untaggedCount } from './src/collection/tagModel';
-import { backTarget, visitTab } from './src/collection/navModel';
+import { onHardwareBack } from './src/collection/hardwareBack';
+import { backTarget, closeAuthor, openAuthor as openAuthorPage, visitTab, wallKey } from './src/collection/navModel';
+import { authorSummary, postsByAuthor } from './src/collection/authorModel';
+import { useWallSelection } from './src/collection/useWallSelection';
 import { useCollectionTheme } from './src/collection/tokens';
 import { pickBackup, shareBackup } from './src/collection/backupIO';
 import { pickRediscover } from './src/collection/rediscover';
@@ -29,6 +32,8 @@ import { TAB_BAR_HEIGHT, TabBar } from './src/collection/ui/TabBar';
 import { TagBrowser, TagPageBar } from './src/collection/ui/TagBrowser';
 import { FetchHealth } from './src/collection/ui/FetchHealth';
 import { CardMenu, Toast } from './src/collection/ui/Overlays';
+import { AuthorBar } from './src/collection/ui/AuthorPage';
+import { BatchTagSheet, ConfirmDeleteSheet, SELECTION_BAR_HEIGHT } from './src/collection/ui/Selection';
 import { PostDetail } from './src/collection/ui/PostDetail';
 import { SaveSheet } from './src/collection/ui/SaveSheet';
 import { BackupNote } from './src/collection/ui/BackupNote';
@@ -108,6 +113,10 @@ function Home({ notice }) {
   const [tagChild, setTagChild] = useState(null); // 小標籤 chip on that page
   const [deckFilter, setDeckFilter] = useState(null);
   const [streamFilter, setStreamFilter] = useState(null);
+  // 作者頁 (inside 收藏) and 批次選取 — see navModel.openAuthor / wallKey.
+  const [authorPage, setAuthorPage] = useState(null); // { handle, from: { tab, detailId } }
+  const [streamAuthor, setStreamAuthor] = useState(null); // 串流 narrowed to one author
+  const [menuSelectable, setMenuSelectable] = useState(false); // card menu opened from a wall
   const insets = useSafeAreaInsets();
   const afterSheet = useRef(null); // the deck moving past a card once its tags are set
   const pendingDownloads = useRef(new Map()); // postId → { fromShare }
@@ -133,6 +142,22 @@ function Home({ notice }) {
     [pageTag, tagChild, c.posts, appliedQuery, index],
   );
   const summaries = useMemo(() => (browsing ? tagSummaries(c.posts, index) : []), [browsing, c.posts, index]);
+  const authorHandle = authorPage?.handle;
+  const authorPosts = useMemo(
+    () => (authorHandle ? filterPosts(postsByAuthor(c.posts, authorHandle), [], appliedQuery, index) : []),
+    [authorHandle, c.posts, appliedQuery, index],
+  );
+  const authorInfo = useMemo(() => (authorHandle ? authorSummary(c.posts, authorHandle, index) : null), [authorHandle, c.posts, index]);
+
+  // 批次選取 lives on one wall; opening another page or leaving the tab ends it.
+  const currentWall = wallKey({ tab, authorPage: authorHandle, tagPage: pageTag?.id, browsing });
+  const sel = useWallSelection({
+    currentWall,
+    wallPosts: currentWall === 'home' ? visible : currentWall?.startsWith('tag:') ? pagePosts : authorPosts,
+    c,
+    download: (id) => requestDownload(id),
+    notify: setToast,
+  });
 
   const goTab = useCallback((next) => {
     setTab(next);
@@ -147,6 +172,7 @@ function Home({ notice }) {
   const searchFromTab = () => {
     setBrowsing(false);
     setTagPage(null);
+    setAuthorPage(null);
     setSearching(true);
     goTab('home');
   };
@@ -286,7 +312,11 @@ function Home({ notice }) {
         Linking.openURL(post.url).catch(() => setToast({ message: '無法開啟 Threads' }));
         break;
       case 'more':
+        setMenuSelectable(false);
         setMenuPost(post);
+        break;
+      case 'select':
+        sel.start(currentWall, post.id);
         break;
       case 'delete':
         c.remove(post.id);
@@ -334,18 +364,24 @@ function Home({ notice }) {
   // Android back closes the topmost layer first; the wall stays mounted underneath
   // so its scroll position and filters survive.
   useEffect(() => {
-    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+    return onHardwareBack(() => {
       const target = backTarget({
         sheet: !!sheet,
+        batchSheet: !!sel.sheet,
         addOpen,
         settingsOpen,
         menuOpen: !!menuPost,
         detailOpen: !!detailId,
+        selecting: sel.active,
         tab,
+        authorPage: !!authorPage,
         tagPage: !!pageTag,
         browsing,
       });
       if (target === 'sheet') finishSheet({ closed: true });
+      else if (target === 'batchSheet') sel.closeSheet();
+      else if (target === 'selection') sel.exit();
+      else if (target === 'author') leaveAuthor();
       else if (target === 'add') setAddOpen(false);
       else if (target === 'settings') setSettingsOpen(false);
       else if (target === 'menu') setMenuPost(null);
@@ -355,7 +391,6 @@ function Home({ notice }) {
       else if (target === 'browser') setBrowsing(false);
       return target !== null;
     });
-    return () => sub.remove();
   });
 
   const exportNow = async () => {
@@ -385,8 +420,27 @@ function Home({ notice }) {
   const openPost = (p) => setDetailId(p.id);
   const openMenu = (p) => {
     buzz('light');
+    setMenuSelectable(true);
     setMenuPost(p);
   };
+
+  // --- 作者頁: tapping an @handle (post detail, 串流, 翻翻) opens it in 收藏;
+  // back returns to the tab and post detail it was opened from.
+  const openAuthor = (handle) => {
+    if (!handle) return;
+    const next = openAuthorPage(authorPage, handle, { tab, detailId });
+    setDetailId(null);
+    setMenuPost(null);
+    setAuthorPage(next);
+    goTab('home');
+  };
+  const leaveAuthor = () => {
+    const back = closeAuthor(authorPage, (id) => c.posts.some((p) => p.id === c.resolveId(id)));
+    setAuthorPage(null);
+    if (back.tab !== 'home') goTab(back.tab);
+    if (back.detailId) setDetailId(back.detailId);
+  };
+
   // Screens above the tab bar get no bottom inset (the bar takes it), so lists
   // and the download pill end above the bar; the toast is lifted over it unless
   // the detail page (which covers the bar) is open.
@@ -397,8 +451,10 @@ function Home({ notice }) {
       <SafeAreaInsetsContext.Provider value={contentInsets}>
         <View style={styles.content}>
           <Pane hidden={tab !== 'home'}>
-            <Pane hidden={browsing}>
+            <Pane hidden={browsing || !!authorPage}>
               <CardWall
+                onSelect={() => sel.start('home')}
+                selection={sel.propsFor('home', visible)}
                 posts={visible}
                 total={c.posts.length}
                 index={index}
@@ -443,10 +499,13 @@ function Home({ notice }) {
                 }
               />
             </Pane>
-            {browsing &&
-              (pageTag ? (
+            {browsing && (
+              <Pane hidden={!!authorPage}>
+              {pageTag ? (
                 <CardWall
                   key={pageTag.id}
+                  onSelect={() => sel.start(`tag:${pageTag.id}`)}
+                  selection={sel.propsFor(`tag:${pageTag.id}`, pagePosts)}
                   posts={pagePosts}
                   index={index}
                   title={pageTag.name}
@@ -472,6 +531,7 @@ function Home({ notice }) {
                       onChild={setTagChild}
                       onStream={() => {
                         setStreamFilter(pageTag.id);
+                        setStreamAuthor(null);
                         goTab('stream');
                       }}
                     />
@@ -489,7 +549,44 @@ function Home({ notice }) {
                   onTriage={startTriage}
                   onEdit={() => setTagsOpen(true)}
                 />
-              ))}
+              )}
+              </Pane>
+            )}
+            {authorPage && (
+              <CardWall
+                key={authorPage.handle}
+                onSelect={() => sel.start(`author:${authorPage.handle}`)}
+                selection={sel.propsFor(`author:${authorPage.handle}`, authorPosts)}
+                posts={authorPosts}
+                index={index}
+                title={`@${authorPage.handle}`}
+                compactTitle
+                kicker="作者"
+                onBack={leaveAuthor}
+                backLabel="返回"
+                filter={[]}
+                onFilter={() => {}}
+                query={query}
+                onQuery={setQuery}
+                searching={searching}
+                onSearching={setSearchOpen}
+                onOpen={openPost}
+                onMenu={openMenu}
+                onRetry={(p) => c.retry(p.id)}
+                emptyText={{ title: '這位作者沒有收藏了', body: '刪除的貼文可以在提示出現時按「復原」。', action: '返回' }}
+                filterBar={
+                  <AuthorBar
+                    handle={authorPage.handle}
+                    summary={authorInfo}
+                    onStream={() => {
+                      setStreamAuthor(authorPage.handle);
+                      setStreamFilter(null);
+                      goTab('stream');
+                    }}
+                  />
+                }
+              />
+            )}
           </Pane>
           {visited.includes('deck') && (
             <Pane hidden={tab !== 'deck'}>
@@ -499,6 +596,7 @@ function Home({ notice }) {
                 filter={deckFilter}
                 onFilter={setDeckFilter}
                 onOpen={openPost}
+                onAuthor={openAuthor}
                 onPick={(post, done) => {
                   afterSheet.current = done;
                   setSheetTags(post.tagIds);
@@ -517,6 +615,9 @@ function Home({ notice }) {
                 index={index}
                 filter={streamFilter}
                 onFilter={setStreamFilter}
+                author={streamAuthor}
+                onClearAuthor={() => setStreamAuthor(null)}
+                onAuthor={openAuthor}
                 active={tab === 'stream' && !detail}
                 actions={headerActions}
                 onAction={onAction}
@@ -524,6 +625,8 @@ function Home({ notice }) {
               />
             </Pane>
           )}
+          {/* Lifted over the selection bar while selecting. */}
+          <SafeAreaInsetsContext.Provider value={sel.active ? { ...contentInsets, bottom: SELECTION_BAR_HEIGHT } : contentInsets}>
           <DownloadPill
             state={dl.state}
             queued={dl.queued}
@@ -535,6 +638,7 @@ function Home({ notice }) {
             }}
             onSkip={dl.skip}
           />
+          </SafeAreaInsetsContext.Provider>
         </View>
       </SafeAreaInsetsContext.Provider>
       <TabBar tab={tab} onChange={goTab} />
@@ -546,6 +650,7 @@ function Home({ notice }) {
             onBack={() => setDetailId(null)}
             onAction={onAction}
             onStale={(p) => c.refresh(p.id)}
+            onAuthor={openAuthor}
           />
         </View>
       )}
@@ -558,7 +663,11 @@ function Home({ notice }) {
         <WebView key={dl.webViewKey} {...dl.webViewProps} sharedCookiesEnabled style={styles.hiddenWeb} containerStyle={styles.hiddenWeb} />
       )}
 
-      <CardMenu post={menuPost} onClose={() => setMenuPost(null)} onAction={onAction} />
+      <CardMenu post={menuPost} selectable={menuSelectable && !!currentWall} onClose={() => setMenuPost(null)} onAction={onAction} />
+      {sel.sheet === 'tags' && (
+        <BatchTagSheet posts={c.posts} ids={sel.ids} index={index} onCreateTag={c.createTag} onApply={sel.applyTags} onClose={sel.closeSheet} />
+      )}
+      {sel.sheet === 'delete' && <ConfirmDeleteSheet count={sel.ids.length} onConfirm={sel.confirmDelete} onClose={sel.closeSheet} />}
       <SaveSheet
         visible={!!sheet}
         mode={sheet?.mode}

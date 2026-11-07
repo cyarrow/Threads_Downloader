@@ -4,12 +4,16 @@ import { IconButton } from './base';
 
 // Top-right actions shared by every tab: ＋ 收藏連結 (was the floating button),
 // 搜尋, 設定. Icon-only, so each carries its accessible name.
-export function HeaderActions({ onAdd, onSearch, searching, onSettings }) {
+// On the card walls (收藏, a tag page, an author page) `onSelect` adds 選取多篇
+// first; an author page leaves out ＋ and 設定 (no `onAdd` / `onSettings`) so
+// its @handle title keeps room.
+export function HeaderActions({ onAdd, onSearch, searching, onSettings, onSelect }) {
   return (
     <View style={styles.row}>
-      <IconButton name="add" label="收藏連結" onPress={onAdd} />
+      {onSelect && <IconButton name="checkmark-circle-outline" label="選取多篇" onPress={onSelect} />}
+      {onAdd && <IconButton name="add" label="收藏連結" onPress={onAdd} />}
       <IconButton name={searching ? 'close' : 'search'} label={searching ? '關閉搜尋' : '搜尋'} onPress={onSearch} />
-      <IconButton name="settings-outline" label="設定" onPress={onSettings} />
+      {onSettings && <IconButton name="settings-outline" label="設定" onPress={onSettings} />}
     </View>
   );
 }

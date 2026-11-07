@@ -1,6 +1,7 @@
 // 串流 (single-column feed) ordering. Pure: no React, no React Native, so the
 // rules are unit-tested in test/streamModel.test.mjs.
 
+import { postsByAuthor } from './authorModel.js';
 import { isBrowsable } from './rediscover.js';
 import { filterPosts } from './tagModel.js';
 
@@ -13,9 +14,11 @@ function hash(str) {
 // 'new': newest save first. 'random': every post gets a fixed place for the
 // seed (a hash of seed + id), so a post saved or edited meanwhile slots in
 // without reshuffling the ones the user is looking at; 換一批 bumps the seed.
-// `filter`: a tag id, UNCATEGORIZED, or null for everything.
-export function streamPosts(posts, { order = 'new', seed = 0, filter = null, index }) {
+// `filter`: a tag id, UNCATEGORIZED, or null for everything. `author`: a handle
+// (作者頁's 「用串流看 ›」), applied together with the tag filter.
+export function streamPosts(posts, { order = 'new', seed = 0, filter = null, author = null, index }) {
   let list = posts.filter(isBrowsable);
+  if (author) list = postsByAuthor(list, author);
   if (filter) list = filterPosts(list, [filter], '', index);
   if (order === 'random') {
     return list

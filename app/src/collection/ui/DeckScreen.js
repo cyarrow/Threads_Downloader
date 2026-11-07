@@ -38,7 +38,7 @@ const SESSION_SEED = Date.now() % 100000;
 // motion there is no fly-out: the action happens and the next card is just there.
 // `ref.fling(direction)`: the same exit for the buttons under the deck.
 // `exits(direction)`: whether that direction removes the card (fly) or not.
-function SwipeCard({ ref, post, index, top, likeLabel, likeIcon, nopeLabel, onSwipe, onOpen, exits }) {
+function SwipeCard({ ref, post, index, top, likeLabel, likeIcon, nopeLabel, onSwipe, onOpen, onAuthor, exits }) {
   const { width } = useWindowDimensions();
   const reduce = useReduceMotion();
   const pan = useState(() => new Animated.ValueXY())[0];
@@ -128,6 +128,7 @@ function SwipeCard({ ref, post, index, top, likeLabel, likeIcon, nopeLabel, onSw
           { name: 'like', label: likeLabel },
           { name: 'next', label: nopeLabel },
           { name: 'tags', label: '加標籤' },
+          ...(onAuthor && post.author ? [{ name: 'author', label: `看 @${post.author} 的所有收藏` }] : []),
         ]}
         onAccessibilityAction={({ nativeEvent }) => {
           const name = nativeEvent.actionName;
@@ -135,10 +136,23 @@ function SwipeCard({ ref, post, index, top, likeLabel, likeIcon, nopeLabel, onSw
           else if (name === 'like') fling('right');
           else if (name === 'next') fling('left');
           else if (name === 'tags') fling('up');
+          else if (name === 'author') onAuthor(post.author);
         }}
         style={styles.fill}
       >
-        <DeckCard post={post} index={index} likeLabel={likeLabel} likeIcon={likeIcon} nopeLabel={nopeLabel} likeOpacity={likeOpacity} nopeOpacity={nopeOpacity} />
+        <DeckCard
+          post={post}
+          index={index}
+          likeLabel={likeLabel}
+          likeIcon={likeIcon}
+          nopeLabel={nopeLabel}
+          likeOpacity={likeOpacity}
+          nopeOpacity={nopeOpacity}
+          onAuthorPressIn={() => {
+            dragged.current = false;
+          }}
+          onAuthor={onAuthor && post.author ? () => !dragged.current && onAuthor(post.author) : undefined}
+        />
       </Pressable>
     </Animated.View>
   );
@@ -188,7 +202,8 @@ function DeckButton({ iconName, label, a11yLabel, onPress, disabled, big, wide }
 // is undoable with ↶. The buttons do the same as the swipes and are the
 // accessible path; the result is announced and shown in the status line.
 // `onPick(post, done)`: open the tag sheet; call done(tagIds) when it closes.
-export function DeckScreen({ posts, index, filter, onFilter, onOpen, onPick, onFeature, onSetTags, actions }) {
+// `onAuthor(handle)`: the top card's @handle was tapped (opens the author page).
+export function DeckScreen({ posts, index, filter, onFilter, onOpen, onAuthor, onPick, onFeature, onSetTags, actions }) {
   const t = useCollectionTheme();
   const insets = useSafeAreaInsets();
   const triage = filter === UNCATEGORIZED;
@@ -333,6 +348,7 @@ export function DeckScreen({ posts, index, filter, onFilter, onOpen, onPick, onF
               nopeLabel={nopeLabel}
               onSwipe={run}
               onOpen={onOpen}
+              onAuthor={onAuthor}
               exits={(d) => deckAction(d, { triage, hasSuggestion: !!suggestion }) !== 'pick'}
             />
           </>

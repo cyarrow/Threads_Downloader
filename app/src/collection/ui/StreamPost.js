@@ -45,7 +45,8 @@ function Action({ iconName, label, onPress }) {
 // media are a print (paper edge, savedAt imprint) inset from the screen edge,
 // text-only posts are the back of a photo.
 // `active`: false once the post scrolls out of view, which stops its video.
-function StreamPostImpl({ post, index, width, active, onTag, onAction, onStale }) {
+// `onAuthor(handle)`: the byline was tapped.
+function StreamPostImpl({ post, index, width, active, onTag, onAuthor, onAction, onStale }) {
   const t = useCollectionTheme();
   const staleOnce = useRef(false);
   const tags = post.tagIds.map((id) => index.byId[id]).filter(Boolean);
@@ -67,15 +68,23 @@ function StreamPostImpl({ post, index, width, active, onTag, onAction, onStale }
       {film && <SprocketRule height={12} pitch={16} style={styles.strip} />}
       <View style={styles.text}>
         <TagKicker hue={hue} featured={post.featured} untagged={!tags[0]} label={tags[0] ? tagLabel(tags[0], index.byId) : '未分類'} />
-        <View>
+        {/* Byline: one ≥48dp touch target (handle + date) that opens the author's page. */}
+        <Pressable
+          onPress={() => onAuthor?.(post.author)}
+          disabled={!onAuthor || !post.author}
+          accessibilityRole="button"
+          accessibilityLabel={`作者 @${post.author} 的所有收藏`}
+          style={({ pressed }) => [styles.byline, { opacity: pressed ? 0.6 : 1 }]}
+        >
           <Text style={[t.font.headline, { color: t.foreground }]} numberOfLines={1}>
             {t.theme !== 'film' && <Text style={[t.font.label, { color: t.mutedForeground }]}>文 ／ </Text>}@{post.author}
+            {!!onAuthor && <Text style={[t.font.label, { color: t.mutedForeground }]}> ›</Text>}
           </Text>
           <Text style={[t.font.caption, styles.dateline, { color: t.mutedForeground }]}>
             收藏於 {shortDate(post.savedAt)}
             {deleted ? ' · 原貼文已刪除' : ''}
           </Text>
-        </View>
+        </Pressable>
         {!!post.caption &&
           (post.media.length || still ? (
             <Text style={[t.font.content, { color: t.foreground }]} selectable>
@@ -158,6 +167,7 @@ const styles = StyleSheet.create({
   strip: { marginBottom: space.xs },
   print: { marginHorizontal: PRINT_MARGIN, alignSelf: 'flex-start' },
   dateline: { letterSpacing: 1, marginTop: 2 },
+  byline: { minHeight: TOUCH, justifyContent: 'center', alignSelf: 'flex-start', maxWidth: '100%' },
   tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
   actions: { flexDirection: 'row', flexWrap: 'wrap', columnGap: space.lg, marginLeft: -space.sm, marginTop: -space.xs },
   action: { minHeight: TOUCH, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: space.sm },

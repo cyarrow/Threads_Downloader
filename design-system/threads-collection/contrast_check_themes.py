@@ -76,6 +76,20 @@ for tid, theme in data.items():
         if tid != 'editorial':
             check('stamp as active-tab mark on tabBar', t['stamp'], t['tabBar'], 3)
         check('onTabBarMuted icon on tabBar', t['onTabBarMuted'], t['tabBar'], 3)
+        # 批次選取 (Selection.js) and 作者頁.
+        check('selection ring (foreground) vs background', t['foreground'], t['background'], 3)
+        check('selected mark: ✓ (background) on foreground fill', t['background'], t['foreground'], 3)
+        for photo in ('#FFFFFF', '#808080', '#000000'):
+            check(f'unselected mark: onBadge ring on badge over a {photo} photo', t['onBadge'], over(t['badge'], photo), 3)
+            # The checked mark's fill on a photo, or its background-coloured rim when the fill blends in.
+            check(f'selected mark vs a {photo} photo (fill or rim)', t['foreground'] if cr(t['foreground'], photo) >= cr(t['background'], photo) else t['background'], photo, 3)
+        check('selection bar label (foreground) on card', t['foreground'], t['card'])
+        check('selection bar 刪除 (danger) on card', t['danger'], t['card'])
+        check('selection bar top hairline (border) vs card', t['border'], t['card'], 1.2)
+        check('mixed tag chip: dashed foreground edge vs card (sheet)', t['foreground'], t['card'], 3)
+        check('mixed tag chip: label on card', t['foreground'], t['card'])
+        check('deck @handle link (onEdgeMuted) on edge', t['onEdgeMuted'], t['edge'])
+        check('stream / detail byline › (mutedForeground) on background', t['mutedForeground'], t['background'], 3)
         # Decorative: must be visible, no 3:1 requirement.
         check('border vs background (hairline)', t['border'], t['background'], 1.2)
         check('sprocket strip vs background', t['sprocket'], t['background'], 1.4)

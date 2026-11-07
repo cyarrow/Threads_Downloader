@@ -1,6 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  allSelected,
+  featureTarget,
+  isSelectable,
+  selectableIds,
   applyTagDiff,
   cycleState,
   diffStates,
@@ -67,4 +71,37 @@ test('splitDownloadable skips deleted sources and text-only posts', () => {
   const { ok, skipped } = splitDownloadable(posts, ['a', 'b', 'c']);
   assert.deepEqual(ok.map((p) => p.id), ['a']);
   assert.deepEqual(skipped.map((p) => p.id), ['b', 'c']);
+});
+
+test('selectable cards, 全選 and the 精選 target', () => {
+  const wall = [
+    { id: 'a', status: 'ready', featured: true },
+    { id: 'b', status: 'sourceDeleted', featured: false },
+    { id: 'c', status: 'loading' },
+    { id: 'd', status: 'failed' },
+  ];
+  assert.equal(isSelectable(wall[1]), true);
+  assert.equal(isSelectable(wall[2]), false);
+  assert.deepEqual(selectableIds(wall), ['a', 'b']);
+  assert.equal(allSelected(wall, ['a']), false);
+  assert.equal(allSelected(wall, ['b', 'a']), true);
+  assert.equal(allSelected([], []), false, 'an empty wall is never "all selected"');
+  assert.equal(featureTarget(wall, ['a', 'b']), true, 'mixed → set 精選');
+  assert.equal(featureTarget(wall, ['a']), false, 'all featured → 取消精選');
+  assert.equal(featureTarget(wall, []), true);
+});
+
+test('tri-state round trip: a mixed tag the user did not touch is left alone', () => {
+  const sel = ['a', 'b', 'c'];
+  const initial = tagStates(posts, sel); // fan: some (a, b), life: some (a)
+  // The user adds 美食 to all and removes nothing; fan / life stay mixed.
+  const current = { ...initial, food: 'all' };
+  const diff = diffStates(initial, current);
+  assert.deepEqual(diff, { add: ['food'], remove: [] });
+  const out = applyTagDiff(posts, sel, diff);
+  assert.deepEqual(out.slice(0, 3).map((p) => p.tagIds), [['fan', 'life', 'food'], ['fan', 'food'], ['food']]);
+  // Cycling a mixed chip all the way round is no change either.
+  let s = 'some';
+  for (let i = 0; i < 3; i++) s = cycleState(s, 'some');
+  assert.equal(s, 'some');
 });

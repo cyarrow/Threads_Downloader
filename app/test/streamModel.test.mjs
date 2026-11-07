@@ -51,3 +51,10 @@ test('tapping a tag filters by its 大標籤', () => {
   assert.equal(filterForTag('food', index.byId), 'food');
   assert.equal(filterForTag('missing', index.byId), null);
 });
+
+test('author: only that author, combined with the tag filter', () => {
+  const mine = [...posts, post('x', 7, { author: 'new', tagIds: ['food'] })];
+  assert.deepEqual(streamPosts(mine, { author: '@new', index }).map((p) => p.id), ['new', 'x']);
+  assert.deepEqual(streamPosts(mine, { author: 'new', filter: 'food', index }).map((p) => p.id), ['x']);
+  assert.deepEqual(streamPosts(mine, { author: 'loading', index }), [], 'unreadable posts stay out');
+});

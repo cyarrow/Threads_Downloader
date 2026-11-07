@@ -28,7 +28,9 @@ function MenuRow({ iconName, label, onPress, danger, last }) {
 }
 
 // Long-press menu. Every action here also has a visible button on the detail page.
-export function CardMenu({ post, onClose, onAction }) {
+// `selectable`: opened from a card wall, so it offers 選取多篇 (selection mode
+// with this card already checked; the wall's title row has the same entry).
+export function CardMenu({ post, onClose, onAction, selectable }) {
   if (!post) return null;
   const act = (kind) => () => onAction(kind, post);
   return (
@@ -40,6 +42,7 @@ export function CardMenu({ post, onClose, onAction }) {
           <MenuRow iconName="download-outline" label={post.downloaded ? '再次下載' : '下載到相簿'} onPress={act('download')} />
         )}
         <MenuRow iconName="open-outline" label="在 Threads 開啟" onPress={act('open')} />
+        {selectable && <MenuRow iconName="checkmark-circle-outline" label="選取多篇" onPress={act('select')} />}
         {/* The destructive action stands apart, below a gap after the last rule. */}
         <View style={styles.divider} />
         <MenuRow iconName="trash-outline" label="刪除收藏" danger onPress={act('delete')} last />
@@ -81,8 +84,27 @@ export function Toast({ toast, onUndo, onHide }) {
 
 // Empty page of the magazine: an outlined icon, a WenKai heading over a short ink
 // rule, then the explanation and one action — set flush left like the masthead.
-export function EmptyState({ filtered, onAction }) {
+// `text` ({ title, body, action, icon }) overrides the wording, e.g. an author
+// page whose posts were all deleted.
+export function EmptyState({ filtered, onAction, text }) {
   const t = useCollectionTheme();
+  if (text && !filtered) {
+    return (
+      <View style={styles.empty}>
+        <View style={[styles.emptyIcon, { borderRadius: t.radius.xs, borderColor: t.border }]}>
+          <Ionicons name={text.icon || 'person-outline'} size={28} color={t.mutedForeground} />
+        </View>
+        <Text style={[t.font.title, { color: t.foreground }]}>{text.title}</Text>
+        <View style={[styles.emptyRule, { backgroundColor: t.foreground }]} />
+        <Text style={[t.font.body, { color: t.mutedForeground }]}>{text.body}</Text>
+        {!!onAction && (
+          <View style={styles.emptyAction}>
+            <PrimaryButton title={text.action} iconName="chevron-back" onPress={onAction} />
+          </View>
+        )}
+      </View>
+    );
+  }
   return (
     <View style={styles.empty}>
       <View style={[styles.emptyIcon, { borderRadius: t.radius.xs, borderColor: t.border }]}>

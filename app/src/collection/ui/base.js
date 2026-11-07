@@ -76,20 +76,28 @@ export function IconButton({ name, label, onPress, color, size = icon.lg, disabl
 // Selected chips fill with ink and add a checkmark (colour is never the only signal).
 // variant: 'display' (read-only, compact) | 'choice' (selectable).
 // `neutral` chips (全部, +N, 新增) have no colour square.
-export function TagChip({ label, hue, selected, onPress, variant = 'choice', neutral, iconName, trailingIcon, a11yLabel, expanded }) {
+// `mixed` (批次選取's tri-state picker: only some of the selected posts have the
+// tag): a dashed ink edge and a — mark, read as checked 'mixed'.
+export function TagChip({ label, hue, selected, mixed, onPress, variant = 'choice', neutral, iconName, trailingIcon, a11yLabel, expanded }) {
   const t = useCollectionTheme();
   const display = variant === 'display';
   const on = selected && !display;
+  const some = mixed && !on && !display;
   const text = on ? t.background : t.foreground;
   const content = (
     <View
       style={[
         display ? styles.chipDisplay : styles.chip,
         { borderRadius: display ? t.radius.xs : t.radius.sm },
-        on ? { backgroundColor: t.foreground, borderColor: t.foreground } : { borderColor: display ? t.border : t.outline },
+        on
+          ? { backgroundColor: t.foreground, borderColor: t.foreground }
+          : some
+            ? { borderColor: t.foreground, borderStyle: 'dashed' }
+            : { borderColor: display ? t.border : t.outline },
       ]}
     >
       {on && <Ionicons name="checkmark" size={icon.sm} color={text} />}
+      {some && <Ionicons name="remove" size={icon.sm} color={text} />}
       {!neutral && !on && <TagMark hue={hue} size={display ? 'sm' : 'md'} />}
       {iconName && <Ionicons name={iconName} size={icon.sm} color={text} />}
       <Text style={[display ? t.font.caption : t.font.label, { color: text }]} numberOfLines={1}>
@@ -104,7 +112,8 @@ export function TagChip({ label, hue, selected, onPress, variant = 'choice', neu
       onPress={onPress}
       hitSlop={{ top: (TOUCH - 36) / 2, bottom: (TOUCH - 36) / 2 }}
       accessibilityRole={expanded === undefined ? 'checkbox' : 'button'}
-      accessibilityState={expanded === undefined ? { checked: !!selected } : { expanded, selected: !!selected }}
+      accessibilityState={expanded === undefined ? { checked: some ? 'mixed' : !!selected } : { expanded, selected: !!selected }}
+      aria-checked={expanded === undefined ? (some ? 'mixed' : !!selected) : undefined}
       accessibilityLabel={a11yLabel || label}
       style={({ pressed }) => ({ opacity: pressed ? 0.75 : 1 })}
     >

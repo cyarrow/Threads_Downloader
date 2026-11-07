@@ -87,3 +87,25 @@ export function splitDownloadable(posts, ids) {
   }
   return { ok, skipped };
 }
+
+// Loading and failed cards have nothing to tag, feature or download yet.
+export function isSelectable(post) {
+  return post.status !== 'loading' && post.status !== 'failed';
+}
+
+// 全選: every selectable card on the wall the user is looking at.
+export function selectableIds(posts) {
+  return posts.filter(isSelectable).map((p) => p.id);
+}
+
+export function allSelected(posts, ids) {
+  const all = selectableIds(posts);
+  return all.length > 0 && all.every((id) => ids.includes(id));
+}
+
+// The 精選 button sets every selected post as featured, unless all of them
+// already are; then it reads 取消精選 and clears it. Returns the value to set.
+export function featureTarget(posts, ids) {
+  const sel = posts.filter((p) => ids.includes(p.id));
+  return !(sel.length > 0 && sel.every((p) => p.featured));
+}

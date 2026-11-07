@@ -8,8 +8,10 @@ import { HeaderActions } from './HeaderActions';
 import { IconButton, TagChip } from './base';
 import { EmptyState } from './Overlays';
 import { PostCard } from './PostCard';
+import { SelectableCell, SelectionBar, SelectionHeader } from './Selection';
 import { TagScrollRow } from './TagScrollRow';
 import { MastheadRule } from './theme';
+import { allSelected, isSelectable, selectableIds } from '../batch';
 
 // Editorial spacing: wide margins and generous gaps; the hairline under each card
 // does the separating that card boxes used to.
@@ -25,9 +27,16 @@ const ROW_GAP = 20; // between cards in a column
 // replacing the chip row with that tag's 小標籤).
 // `searching` / `onSearching` are optional: pass them to control the search
 // field from outside (other tabs' 搜尋 opens it here).
+// The author page passes `compactTitle` (the @handle in the title size, not the
+// masthead's) and no `onAdd` / `onSettings`.
+// 批次選取: `onSelect` puts 選取多篇 in the title row; `selection` ({ ids,
+// onToggle, onSelectAll, onClear, onExit, onAction, featureOn }) switches the
+// wall into selection mode — 「已選 N 篇」 header, tap toggles a card, and the
+// action bar under the list (so the list ends above it, never under it).
 export function CardWall({
   posts, total, index, filter, onFilter, query, onQuery, onOpen, onMenu, onRetry, onAdd, onSettings, banner,
-  onRefresh, refreshing, overlay, searching: searchingProp, onSearching, title = '收藏', onBack, kicker, filterBar, onAllTags,
+  onRefresh, refreshing, overlay, searching: searchingProp, onSearching, title = '收藏', onBack, backLabel = '返回所有標籤',
+  kicker, filterBar, onAllTags, compactTitle, onSelect, selection, emptyText,
 }) {
   const t = useCollectionTheme();
   const insets = useSafeAreaInsets();
@@ -37,6 +46,7 @@ export function CardWall({
   const setSearching = onSearching ?? setSearchingLocal;
   const columns = width >= 600 ? 3 : 2;
   const filtered = filter.length > 0 || !!query.trim();
+  const picked = selection?.ids;
 
   const header = (
     <View style={styles.header}>
@@ -44,25 +54,43 @@ export function CardWall({
       {kicker !== null && (
         // 底片 drops the magazine's name and keeps only the count.
         <Text style={[t.font.kicker, styles.kicker, { color: t.mutedForeground }]}>
-          {kicker ?? (t.printFrame ? `${total ?? posts.length} 篇` : `THREADS 收藏誌 · ${total ?? posts.length} 篇`)}
+          {selection
+            ? '點卡片勾選，再選下方的動作'
+            : kicker ?? (t.printFrame ? `${total ?? posts.length} 篇` : `THREADS 收藏誌 · ${total ?? posts.length} 篇`)}
         </Text>
       )}
       <View>
-        <View style={[styles.titleRow, onBack && styles.titleRowBack]}>
-          {onBack && <IconButton name="chevron-back" label="返回所有標籤" onPress={onBack} />}
-          <Text style={[t.font.display, styles.title, { color: t.foreground }]} numberOfLines={1} accessibilityRole="header">
-            {title}
-          </Text>
-          <HeaderActions
-            onAdd={onAdd}
-            searching={searching}
-            onSearch={() => {
-              if (searching) onQuery('');
-              setSearching(!searching);
-            }}
-            onSettings={onSettings}
+        {selection ? (
+          <SelectionHeader
+            count={picked.length}
+            selectable={selectableIds(posts).length}
+            allPicked={allSelected(posts, picked)}
+            onSelectAll={selection.onSelectAll}
+            onClear={selection.onClear}
+            onExit={selection.onExit}
           />
-        </View>
+        ) : (
+          <View style={[styles.titleRow, onBack && styles.titleRowBack]}>
+            {onBack && <IconButton name="chevron-back" label={backLabel} onPress={onBack} />}
+            <Text
+              style={[compactTitle ? t.font.title : t.font.display, styles.title, { color: t.foreground }]}
+              numberOfLines={1}
+              accessibilityRole="header"
+            >
+              {title}
+            </Text>
+            <HeaderActions
+              onSelect={posts.some(isSelectable) ? onSelect : undefined}
+              onAdd={onAdd}
+              searching={searching}
+              onSearch={() => {
+                if (searching) onQuery('');
+                setSearching(!searching);
+              }}
+              onSettings={onSettings}
+            />
+          </View>
+        )}
         {/* 2px ink line (雜誌) or a sprocket strip (底片). */}
         <MastheadRule style={styles.rule} />
       </View>
@@ -117,8 +145,9 @@ export function CardWall({
         overrideItemLayout={(layout, item) => {
           if (item.featured) layout.span = columns;
         }}
-        renderItem={({ item }) => (
-          <View style={styles.cell}>
+        extraData={picked}
+        renderItem={({ item }) => {
+          const card = (
             <PostCard
               post={item}
               index={index}
@@ -128,16 +157,39 @@ export function CardWall({
               wide={columns >= 3}
               maxMediaHeight={Math.round(height * 0.55)}
             />
-          </View>
-        )}
+          );
+          return (
+            <View style={styles.cell}>
+              {selection ? (
+                <SelectableCell
+                  post={item}
+                  selected={picked.includes(item.id)}
+                  disabled={!isSelectable(item)}
+                  onToggle={() => selection.onToggle(item.id)}
+                >
+                  {card}
+                </SelectableCell>
+              ) : (
+                card
+              )}
+            </View>
+          );
+        }}
         ListHeaderComponent={header}
-        ListEmptyComponent={<EmptyState filtered={filtered} onAction={filtered ? () => { onFilter([]); onQuery(''); } : onAdd} />}
+        ListEmptyComponent={
+          <EmptyState
+            filtered={filtered}
+            text={emptyText}
+            onAction={filtered ? () => { onFilter([]); onQuery(''); } : emptyText ? onBack : onAdd}
+          />
+        }
         contentContainerStyle={{
           paddingTop: insets.top + space.sm,
           paddingHorizontal: GUTTER - GAP / 2,
           paddingBottom: insets.bottom + space.xxl,
         }}
       />
+      {selection && <SelectionBar count={picked.length} featureOn={selection.featureOn} onAction={selection.onAction} />}
       {overlay}
     </View>
   );

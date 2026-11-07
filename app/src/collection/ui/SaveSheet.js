@@ -11,7 +11,7 @@ import { TOUCH, icon, space, useCollectionTheme } from '../tokens';
 import { PrimaryButton, Sheet, TagChip } from './base';
 import { QuickPanel, UnsortedButton } from './QuickSave';
 
-function NewTagForm({ index, parentId: initialParent, onCreate, onCancel }) {
+export function NewTagForm({ index, parentId: initialParent, onCreate, onCancel }) {
   const t = useCollectionTheme();
   const [name, setName] = useState('');
   const [parentId, setParentId] = useState(initialParent || null);

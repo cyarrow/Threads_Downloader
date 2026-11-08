@@ -33,12 +33,14 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "test": "node --no-warnings --test test/*.test.mjs",
+    "e2e": "node e2e/run.mjs --build",
     "lint": "expo lint",
     "prototype:web": "EXPO_PUBLIC_PROTOTYPE=1 expo export --platform web --output-dir dist-prototype"
   },
   "private": true,
   "devDependencies": {
     "eslint": "^9.0.0",
-    "eslint-config-expo": "~58.0.4"
+    "eslint-config-expo": "~58.0.4",
+    "playwright": "1.63.0"
   }
 }

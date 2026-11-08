@@ -100,3 +100,43 @@ jobs:
             --title "Threads 下載 ${{ steps.apk.outputs.version }} (build $BUILD_NUMBER)" \
             --notes-file "$RUNNER_TEMP/notes.md" \
             --latest
+
+  # Browser end-to-end tests: the web export (with its *.web.js stand-ins) driven
+  # in Chromium. Runs next to the APK job and never holds up the build or release.
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: app
+    env:
+      CI: '1'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - run: npm ci
+
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: Run E2E suites (light + dark)
+        run: npm run e2e
+
+      - name: Upload screenshots and logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-screenshots-${{ github.run_number }}
+          path: |
+            app/e2e/.out/shots
+            app/e2e/.out/logs
+          if-no-files-found: ignore
+          retention-days: 14

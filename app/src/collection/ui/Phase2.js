@@ -1,5 +1,5 @@
 // Phase 2 screens: tag manager, triage of 未分類 posts, and the rediscover card.
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
@@ -10,16 +10,18 @@ import { TAG_HUES } from '../palette';
 import { reasonText, suggestTags } from '../suggest';
 import { tagHue, tagLabel } from '../tagModel';
 import { BRAND_FONT, TOUCH, icon, space, useCollectionTheme } from '../tokens';
-import { IconButton, PrimaryButton, SecondaryButton, Sheet, TagChip } from './base';
+import { IconButton, PrimaryButton, SecondaryButton, Sheet, TagChip, useKeyboardOverlap } from './base';
 import { PhotoBack, Print, SprocketRule, TagMark } from './theme';
 
 // Full-screen page (標籤管理, 自動標籤規則): back arrow + title, content, optional footer.
 export function Page({ title, onClose, children, footer }) {
   const t = useCollectionTheme();
   const insets = useSafeAreaInsets();
+  const rootRef = useRef(null);
+  const keyboard = useKeyboardOverlap(rootRef);
   return (
     <Modal visible animationType="slide" onRequestClose={onClose}>
-      <View style={[styles.page, { backgroundColor: t.background, paddingTop: insets.top }]}>
+      <View ref={rootRef} collapsable={false} style={[styles.page, { backgroundColor: t.background, paddingTop: insets.top, paddingBottom: keyboard }]}>
         <View style={[styles.topBar, { borderBottomColor: t.border }]}>
           <IconButton name="arrow-back" label="返回" onPress={onClose} />
           <Text style={[t.font.title, styles.topTitle, { color: t.foreground }]} accessibilityRole="header">
@@ -27,7 +29,7 @@ export function Page({ title, onClose, children, footer }) {
           </Text>
         </View>
         {children}
-        {footer && <View style={[styles.footer, { paddingBottom: insets.bottom + space.md, borderTopColor: t.border, backgroundColor: t.background }]}>{footer}</View>}
+        {footer && <View style={[styles.footer, { paddingBottom: keyboard ? space.md : insets.bottom + space.md, borderTopColor: t.border, backgroundColor: t.background }]}>{footer}</View>}
       </View>
     </Modal>
   );

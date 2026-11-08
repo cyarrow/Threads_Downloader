@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { useRef, useState } from 'react';
+import { Keyboard, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { tagNameError } from '../collectionModel';
@@ -13,7 +13,18 @@ import { NoteField } from './Notes';
 import { QuickPanel, UnsortedButton } from './QuickSave';
 import { RuleHitsRow } from './RuleHits';
 
-export function NewTagForm({ index, parentId: initialParent, onCreate, onCancel }) {
+// Scroll `ref`'s list to its end once the keyboard has opened and the sheet has
+// lifted and shrunk above it (see useKeyboardOverlap), so a field at the bottom
+// of the list ends up visible.
+export function scrollToEndForKeyboard(ref) {
+  const sub = Keyboard.addListener('keyboardDidShow', () => {
+    sub.remove();
+    setTimeout(() => ref.current?.scrollToEnd({ animated: true }), 120);
+  });
+  setTimeout(() => sub.remove(), 1500);
+}
+
+export function NewTagForm({ index, parentId: initialParent, onCreate, onCancel, onFocus }) {
   const t = useCollectionTheme();
   const [name, setName] = useState('');
   const [parentId, setParentId] = useState(initialParent || null);
@@ -35,6 +46,7 @@ export function NewTagForm({ index, parentId: initialParent, onCreate, onCancel 
           setError(null);
         }}
         onSubmitEditing={submit}
+        onFocus={onFocus}
         autoFocus
         placeholder="例如：某個團體、咖啡廳"
         placeholderTextColor={t.mutedForeground}
@@ -100,7 +112,9 @@ function SuggestionGroup({ items, index, selected, onToggle }) {
 // Nothing above a chip may change after the picker opens (it would shift the
 // chip under the finger): suggestions on screen at open stay pinned at the top,
 // and ones that arrive later (the post finished loading) go to the end.
-export function TagPicker({ index, selected, onToggle, onCreate, recentIds = [], suggestions = [] }) {
+// `onFormFocus`: the new-tag field (always last in the picker) got focus — the
+// sheet owning the scroll view brings it above the keyboard (see scrollToEndForKeyboard).
+export function TagPicker({ index, selected, onToggle, onCreate, recentIds = [], suggestions = [], onFormFocus }) {
   const t = useCollectionTheme();
   const [open, setOpen] = useState(() =>
     index.parents.filter((p) => (index.children[p.id] || []).some((c) => selected.includes(c.id))).map((p) => p.id),
@@ -196,6 +210,7 @@ export function TagPicker({ index, selected, onToggle, onCreate, recentIds = [],
           parentId={creating.parentId}
           onCreate={create}
           onCancel={() => setCreating(null)}
+          onFocus={onFormFocus}
         />
       )}
       {late.length > 0 && <SuggestionGroup items={late} index={index} selected={selected} onToggle={onToggle} />}
@@ -257,6 +272,7 @@ export function SaveSheet({
   downloadToo, onDownloadToo, onDone, onClose, onQuickPick, onExpand, ruleSlot, note, onNote,
 }) {
   const t = useCollectionTheme();
+  const scrollRef = useRef(null);
   const { height } = useWindowDimensions();
   const isNew = mode === 'new';
   const compact = isNew && !!quick;
@@ -302,6 +318,7 @@ export function SaveSheet({
       }
     >
       <ScrollView
+        ref={scrollRef}
         style={[styles.scroll, !compact && { height }]}
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
@@ -330,6 +347,7 @@ export function SaveSheet({
             onCreate={onCreateTag}
             recentIds={recentIds}
             suggestions={suggestions}
+            onFormFocus={() => scrollToEndForKeyboard(scrollRef)}
           />
         )}
         {isNew && !compact && selected.length === 0 && (

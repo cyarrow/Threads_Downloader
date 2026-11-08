@@ -2,7 +2,7 @@
 // post's ⋮ menu, 「為 @author 建立規則」), and the row in the save sheet that shows
 // which tags the rules picked and why. Rules live in store.js; matching is in
 // tagRules.js.
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useCollection } from '../store';
@@ -12,7 +12,7 @@ import { TOUCH, icon, space, useCollectionTheme } from '../tokens';
 import { IconButton, PrimaryButton, SecondaryButton, Sheet } from './base';
 import { Toast } from './Overlays';
 import { Page } from './Phase2';
-import { TagPicker } from './SaveSheet';
+import { TagPicker, scrollToEndForKeyboard } from './SaveSheet';
 import { TagMark } from './theme';
 
 const RULE = StyleSheet.hairlineWidth * 2;
@@ -67,6 +67,7 @@ function KindSwitch({ value, onChange }) {
 // `initialStep: 'confirmDelete'` opens straight at the delete question (a row's trash button).
 export function RuleEditSheet({ draft, index, onDone, initialStep = 'edit' }) {
   const t = useCollectionTheme();
+  const scrollRef = useRef(null);
   const c = useCollection();
   const editing = !!draft.id;
   const [kind, setKind] = useState(draft.kind || 'author');
@@ -160,7 +161,7 @@ export function RuleEditSheet({ draft, index, onDone, initialStep = 'edit' }) {
     );
   } else {
     body = (
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.form} keyboardShouldPersistTaps="handled">
+      <ScrollView ref={scrollRef} style={styles.scroll} contentContainerStyle={styles.form} keyboardShouldPersistTaps="handled">
         <Text style={[t.font.kicker, { color: t.mutedForeground }]}>條件</Text>
         <KindSwitch
           value={kind}
@@ -202,6 +203,7 @@ export function RuleEditSheet({ draft, index, onDone, initialStep = 'edit' }) {
           onToggle={toggleTag}
           onCreate={c.createTag}
           recentIds={c.recent}
+          onFormFocus={() => scrollToEndForKeyboard(scrollRef)}
         />
         {error && (
           <View style={styles.error} accessibilityLiveRegion="polite">

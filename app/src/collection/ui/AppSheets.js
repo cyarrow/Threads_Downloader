@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Modal,
@@ -19,7 +19,7 @@ import { WebView } from 'react-native-webview';
 import { isLoggedInUrl } from '../../threads';
 import { imageSource } from '../media';
 import { TOUCH, elevation, icon, radius, space, useCollectionTheme } from '../tokens';
-import { IconButton, PrimaryButton, SecondaryButton, Sheet } from './base';
+import { IconButton, PrimaryButton, SecondaryButton, Sheet, useKeyboardOverlap } from './base';
 import { QuickSaveSettingRow } from './QuickSave';
 import { BackupSettings } from './BackupSettings';
 import { ThemeSettingRow } from './theme/ThemeSetting';
@@ -31,9 +31,12 @@ const LOGIN_URL = 'https://www.threads.com/login';
 export function LoginSheet({ visible, onClose, onLoggedIn }) {
   const t = useCollectionTheme();
   const insets = useSafeAreaInsets();
+  // The Threads login form is a web page: keep its fields above the keyboard too.
+  const rootRef = useRef(null);
+  const keyboard = useKeyboardOverlap(rootRef);
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <View style={[styles.page, { backgroundColor: t.card, paddingBottom: insets.bottom }]}>
+      <View ref={rootRef} collapsable={false} style={[styles.page, { backgroundColor: t.card, paddingBottom: keyboard || insets.bottom }]}>
         <View style={[styles.pageHeader, { borderBottomColor: t.border }]}>
           <Pressable onPress={onClose} accessibilityRole="button" style={styles.headerButton}>
             <Text style={[t.font.body, { color: t.accent }]}>取消</Text>

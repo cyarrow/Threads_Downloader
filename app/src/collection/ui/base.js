@@ -1,11 +1,33 @@
-import { useEffect, useState } from 'react';
-import { Animated, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Animated, Keyboard, Modal, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { spring, useReduceMotion } from '../../ui/motion';
 import { TOUCH, icon, space, useCollectionTheme } from '../tokens';
 import { TagMark } from './theme/TagMark';
+
+// How much of the view in `ref` the on-screen keyboard covers. Sheets and pages
+// are edge-to-edge Modals, and on current Android the window no longer shrinks
+// for the keyboard, so inputs ended up behind it. Measuring the overlap (rather
+// than adding the keyboard's height) stays correct on devices that do resize:
+// there the view already ends above the keyboard and the overlap is 0.
+export function useKeyboardOverlap(ref) {
+  const [overlap, setOverlap] = useState(0);
+  useEffect(() => {
+    const show = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', (e) => {
+      const top = e.endCoordinates?.screenY;
+      if (!ref.current?.measureInWindow || typeof top !== 'number') return setOverlap(e.endCoordinates?.height || 0);
+      ref.current.measureInWindow((x, y, w, h) => setOverlap(Math.max(0, Math.round(y + h - top))));
+    });
+    const hide = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide', () => setOverlap(0));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, [ref]);
+  return overlap;
+}
 
 // Haptics are a nice-to-have; never let them throw (e.g. on web).
 export function buzz(kind) {
@@ -140,6 +162,9 @@ export function Sheet({ visible, onClose, title, children, footer }) {
   const insets = useSafeAreaInsets();
   const reduce = useReduceMotion();
   const enter = useState(() => new Animated.Value(0))[0];
+  const rootRef = useRef(null);
+  const keyboard = useKeyboardOverlap(rootRef);
+  const { height: windowHeight } = useWindowDimensions();
 
   useEffect(() => {
     if (!visible) return;
@@ -155,12 +180,21 @@ export function Sheet({ visible, onClose, title, children, footer }) {
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
-      <View style={styles.sheetRoot}>
+      <View ref={rootRef} style={styles.sheetRoot} collapsable={false}>
         <Pressable style={[StyleSheet.absoluteFill, { backgroundColor: t.scrim }]} onPress={onClose} accessibilityLabel="關閉" />
         <Animated.View
           style={[
             styles.panel,
-            { backgroundColor: t.card, borderTopLeftRadius: t.radius.sheet, borderTopRightRadius: t.radius.sheet, paddingBottom: insets.bottom + space.lg },
+            {
+              backgroundColor: t.card,
+              borderTopLeftRadius: t.radius.sheet,
+              borderTopRightRadius: t.radius.sheet,
+              // With the keyboard up the panel sits right on top of it (no safe-area
+              // padding under it) and shrinks so its own scroll view keeps working.
+              paddingBottom: keyboard ? space.sm : insets.bottom + space.lg,
+              marginBottom: keyboard,
+              maxHeight: keyboard ? Math.max(200, (windowHeight - keyboard - insets.top) * 0.95) : '88%',
+            },
             panelMotion,
           ]}
         >

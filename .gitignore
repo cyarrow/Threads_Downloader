@@ -1,3 +1,4 @@
 .claude/worktrees/
 graphify-out/.graphify_python
 graphify-out/.graphify_root
+graphify-out/cache/last_query_stamp

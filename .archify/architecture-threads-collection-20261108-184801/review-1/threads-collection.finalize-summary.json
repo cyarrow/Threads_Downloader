@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "finalize",
+  "status": "pass",
+  "type": "architecture",
+  "quality": "showcase",
+  "specification": {
+    "path": "/home/user/Threads_Downloader/.archify/architecture-threads-collection-20261108-184801/candidate.json",
+    "sha256": "e6aa88dd59a2390cb89a765e91d94e475a276ebe171be84ff2a5f14815fdae65",
+    "bytes": 6798
+  },
+  "artifact": {
+    "path": "/home/user/Threads_Downloader/.archify/architecture-threads-collection-20261108-184801/threads-collection.html",
+    "sha256": "e15958a79c10ac4cca9cf701d90306ecf447c6c973079e5caf66970d135a67b4",
+    "bytes": 858286
+  },
+  "gates": {
+    "validate": "pass",
+    "deliver": "pass",
+    "check": "pass",
+    "browser-check": "pass"
+  },
+  "diagnostics": [],
+  "diagnosticSummary": {
+    "total": 0,
+    "shown": 0,
+    "truncated": false
+  },
+  "evidence": {
+    "receipt": "/home/user/Threads_Downloader/.archify/architecture-threads-collection-20261108-184801/review-1/threads-collection.finalize.json",
+    "summaryReceipt": "/home/user/Threads_Downloader/.archify/architecture-threads-collection-20261108-184801/review-1/threads-collection.finalize-summary.json",
+    "browserCheckReceipt": "/home/user/Threads_Downloader/.archify/architecture-threads-collection-20261108-184801/review-1/threads-collection.browser-check.json"
+  },
+  "update": {
+    "status": "current",
+    "installedVersion": "3.2.0",
+    "availableVersion": "3.2.0",
+    "releaseNotes": null,
+    "checkedAt": "2026-11-08T10:48:08.325Z",
+    "source": "cache",
+    "noticeRequired": false,
+    "noticeText": null
+  },
+  "visualReview": "not-requested",
+  "durationMs": 10791,
+  "browserCheck": {
+    "requested": true,
+    "ran": true
+  }
+}

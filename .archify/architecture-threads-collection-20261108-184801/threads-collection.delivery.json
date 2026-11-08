@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "9128ce8a-a447-433f-87fb-bbe105547b53",
+  "status": "current",
+  "command": "deliver",
+  "type": "architecture",
+  "input": "/home/user/Threads_Downloader/.archify/architecture-threads-collection-20261108-184801/candidate.json",
+  "output": "/home/user/Threads_Downloader/.archify/architecture-threads-collection-20261108-184801/threads-collection.html",
+  "specification": {
+    "sha256": "e6aa88dd59a2390cb89a765e91d94e475a276ebe171be84ff2a5f14815fdae65",
+    "bytes": 6798
+  },
+  "artifact": {
+    "sha256": "e15958a79c10ac4cca9cf701d90306ecf447c6c973079e5caf66970d135a67b4",
+    "bytes": 858286
+  }
+}

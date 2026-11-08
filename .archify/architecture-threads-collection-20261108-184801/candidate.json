@@ -1,0 +1,85 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Threads 收藏 App 架構",
+    "locale": "zh-TW",
+    "output": ".archify/architecture-threads-collection-20261108-184801/threads-collection.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/cyarrow/Threads_Downloader",
+      "provider": "github",
+      "link_mode": "web",
+      "revision": "d9b207ac14b8bc5cbde0b9a73d9b4dd7522c9f0c"
+    }
+  },
+  "components": [
+    { "id": "releases", "type": "cloud", "label": "GitHub Releases", "sublabel": "Actions 建 APK", "pos": [40, 40], "size": [150, 64],
+      "sources": [{ "path": ".github/workflows/android.yml", "line": 92, "end_line": 102, "label": "發佈 build-N" }] },
+    { "id": "ui", "type": "frontend", "label": "三個分頁", "sublabel": "翻翻・收藏・串流", "pos": [300, 40], "size": [150, 64],
+      "sources": [
+        { "path": "app/src/collection/ui/DeckScreen.js", "line": 206, "label": "翻翻" },
+        { "path": "app/src/collection/ui/CardWall.js", "line": 36, "label": "收藏牆" },
+        { "path": "app/src/collection/ui/StreamScreen.js", "line": 50, "label": "串流" }
+      ] },
+    { "id": "backup", "type": "backend", "label": "自動備份", "sublabel": "每天最多一次", "pos": [560, 40], "size": [150, 64],
+      "sources": [{ "path": "app/src/collection/autoBackup.js", "line": 34, "label": "useAutoBackup" }] },
+    { "id": "backup_folder", "type": "database", "label": "備份資料夾", "sublabel": "使用者選的 SAF", "pos": [820, 40], "size": [150, 64],
+      "sources": [{ "path": "app/src/collection/backupIO.js", "line": 41, "end_line": 72, "label": "選資料夾・寫檔" }] },
+    { "id": "threads_app", "type": "external", "label": "Threads App", "sublabel": "分享選單", "pos": [40, 220], "size": [150, 64],
+      "sources": [{ "path": "app/app.json", "line": 35, "end_line": 39, "label": "text/* 分享" }] },
+    { "id": "shell", "type": "frontend", "label": "App 殼層", "sublabel": "App.js", "pos": [300, 220], "size": [150, 64],
+      "sources": [
+        { "path": "app/App.js", "line": 88, "label": "useShareIntent" },
+        { "path": "app/App.js", "line": 219, "end_line": 220, "label": "collect()" },
+        { "path": "app/App.js", "line": 675, "label": "TabBar" }
+      ] },
+    { "id": "store", "type": "backend", "label": "收藏狀態", "sublabel": "CollectionProvider", "pos": [560, 220], "size": [150, 64],
+      "sources": [
+        { "path": "app/src/collection/store.js", "line": 206, "label": "addFromUrl" },
+        { "path": "app/src/collection/store.js", "line": 110, "end_line": 138, "label": "runFetch" },
+        { "path": "app/src/collection/store.js", "line": 92, "label": "自動標籤規則" }
+      ] },
+    { "id": "fetcher", "type": "backend", "label": "貼文讀取器", "sublabel": "隱藏 WebView", "pos": [820, 220], "size": [150, 64],
+      "sources": [
+        { "path": "app/src/collection/fetcher.js", "line": 18, "label": "usePostFetcher" },
+        { "path": "app/src/collection/fetcher.js", "line": 94, "end_line": 95, "label": "載入並注入" },
+        { "path": "app/src/threads.js", "line": 111, "label": "extractPost" }
+      ] },
+    { "id": "threads_web", "type": "external", "label": "threads.com", "sublabel": "使用者登入狀態", "pos": [1080, 220], "size": [150, 64],
+      "sources": [{ "path": "app/src/collection/ui/AppSheets.js", "line": 27, "label": "登入網址" }] },
+    { "id": "album", "type": "database", "label": "相簿 Threads", "sublabel": "MediaLibrary", "pos": [40, 400], "size": [150, 64],
+      "sources": [{ "path": "app/src/download.js", "line": 7, "end_line": 28, "label": "找或建相簿" }] },
+    { "id": "downloader", "type": "backend", "label": "下載佇列", "sublabel": "useDownloader", "pos": [300, 400], "size": [150, 64],
+      "sources": [
+        { "path": "app/src/useDownloader.js", "line": 22, "label": "useDownloader" },
+        { "path": "app/src/download.js", "line": 36, "end_line": 48, "label": "saveAll" }
+      ] },
+    { "id": "sqlite", "type": "database", "label": "收藏資料庫", "sublabel": "SQLite collection.db", "pos": [560, 400], "size": [150, 64],
+      "sources": [
+        { "path": "app/src/collection/openRepo.js", "line": 5, "label": "開啟資料庫" },
+        { "path": "app/src/collection/repo.js", "line": 17, "end_line": 57, "label": "資料表" }
+      ] },
+    { "id": "covers", "type": "database", "label": "封面原圖", "sublabel": "documents/covers", "pos": [820, 400], "size": [150, 64],
+      "sources": [{ "path": "app/src/collection/covers.js", "line": 3, "end_line": 20, "label": "saveCover" }] }
+  ],
+  "connections": [
+    { "id": "share", "from": "threads_app", "to": "shell", "label": "分享連結", "variant": "emphasis" },
+    { "id": "collect", "from": "shell", "to": "store", "label": "addFromUrl", "variant": "emphasis" },
+    { "id": "queue-fetch", "from": "store", "to": "fetcher", "label": "排隊讀取", "variant": "emphasis" },
+    { "id": "load-page", "from": "fetcher", "to": "threads_web", "label": "載入貼文頁", "variant": "emphasis" },
+    { "id": "tabs", "from": "shell", "to": "ui", "label": "分頁畫面" },
+    { "id": "check-update", "from": "shell", "to": "releases", "label": "檢查更新", "variant": "dashed" },
+    { "id": "daily-backup", "from": "store", "to": "backup", "label": "收藏有變動", "variant": "dashed" },
+    { "id": "write-backup", "from": "backup", "to": "backup_folder", "label": "寫入 JSON" },
+    { "id": "sql", "from": "store", "to": "sqlite", "label": "SQL 讀寫" },
+    { "id": "save-cover", "from": "store", "to": "covers", "label": "存封面" },
+    { "id": "download", "from": "shell", "to": "downloader", "label": "下載媒體" },
+    { "id": "save-album", "from": "downloader", "to": "album", "label": "存進相簿" }
+  ],
+  "cards": [
+    { "dot": "emerald", "title": "收藏一篇貼文", "items": ["從 Threads 分享連結，App 殼層的 collect() 交給收藏狀態", "先存成「讀取中」卡片，再排進貼文讀取器", "讀取器在隱藏 WebView 用你的登入打開貼文頁，從頁面 JSON 取出內容", "結果寫回 SQLite、存原解析度封面，並套用自動標籤規則", "收藏完成後自動回到 Threads"] },
+    { "dot": "cyan", "title": "下載與登入", "items": ["下載佇列也用隱藏 WebView 取得媒體網址，下載後存進相簿「Threads」", "登入頁打開 threads.com/login，登入狀態和讀取器共用"] },
+    { "dot": "amber", "title": "更新與備份", "items": ["推送到 main 時 GitHub Actions 建 APK 並發佈 build-N", "App 讀 releases/latest 比較版本號，有新版就提示", "自動備份寫 JSON 到你選的資料夾，保留最新 5 份"] }
+  ]
+}

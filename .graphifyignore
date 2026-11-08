@@ -1,0 +1,9 @@
+# Third-party skill packages and generated diagrams are not part of this app.
+.claude/
+.archify/
+skills-lock.json
+# App icons, splash and prototype art carry no project structure.
+*.png
+*.jpg
+*.jpeg
+*.webp

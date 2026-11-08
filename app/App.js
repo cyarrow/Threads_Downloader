@@ -284,6 +284,7 @@ function Home({ notice }) {
     if (notice.kind === 'duplicate') setToast({ message: '這篇之前收藏過了，標籤已合併到原本的卡片' });
     else if (notice.kind === 'login') setLoginOpen(true);
     else if (notice.kind === 'failed') setToast({ message: '有一篇貼文讀取失敗，可以在卡片上重試' });
+    else if (notice.kind === 'saveFailed') setToast({ message: '剛才的變更沒有存進資料庫，畫面已還原成儲存的內容' });
   }, [notice]);
 
   // Applies the picked tags. Closing the sheet keeps them too, so nothing is lost.

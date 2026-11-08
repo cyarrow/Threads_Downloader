@@ -16,6 +16,7 @@ import { applyTagDiff, removePosts, restorePosts } from './batch';
 import { mergeNote, normalizeNote } from './noteModel';
 import { autoTags, dropRules, normalizeRuleValue, postsToTag, repointRules } from './tagRules';
 import { useAutoBackup } from './autoBackup';
+import { guardRepo } from './safeRepo';
 import { deleteCover, saveCover } from './covers';
 import { usePostFetcher } from './fetcher';
 import { openRepo } from './openRepo';
@@ -154,7 +155,29 @@ export function CollectionProvider({ children, onNotice }) {
     (async () => {
       const r = await openRepo();
       await r.init();
-      repo.current = r;
+      // Every later write goes through the guard: if SQLite refuses one, the screen
+      // (already updated optimistically) is reloaded from the database instead of
+      // silently disagreeing with it until the next launch.
+      let resyncing = false;
+      repo.current = guardRepo(r, async (error, method) => {
+        console.warn(`[store] ${method} failed`, error);
+        if (resyncing || !alive) return;
+        resyncing = true;
+        try {
+          const [p, t, rl] = await Promise.all([r.listPosts(), r.listTags(), r.listRules()]);
+          const rec = JSON.parse((await r.getMeta('recent')) || '[]');
+          if (!alive) return;
+          setPosts(() => p);
+          setTags(() => t);
+          setRules(() => rl);
+          setRecent(rec.filter((id) => t.some((tag) => tag.id === id)));
+        } catch (reloadError) {
+          console.warn('[store] reload after a failed write also failed', reloadError);
+        } finally {
+          resyncing = false;
+          noticeRef.current?.({ kind: 'saveFailed' });
+        }
+      });
       // The theme first, before seeding and migration, so the first screen is drawn in it.
       const th = normalizeThemeId(await r.getMeta('theme'));
       if (alive) setThemeState(th);

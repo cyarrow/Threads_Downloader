@@ -105,3 +105,30 @@ test('tri-state round trip: a mixed tag the user did not touch is left alone', (
   for (let i = 0; i < 3; i++) s = cycleState(s, 'some');
   assert.equal(s, 'some');
 });
+
+test('a 全選 of thousands of posts gives the same answers as a short selection (Set lookups)', () => {
+  const many = Array.from({ length: 3000 }, (_, i) => ({
+    id: `p${i}`,
+    tagIds: i % 3 ? ['fan'] : ['fan', 'life'],
+    media: i % 5 ? [{}] : [],
+    status: i % 7 ? 'ready' : 'loading',
+    featured: i % 2 === 0,
+  }));
+  const all = selectableIds(many);
+  const picked = new Set(all);
+  assert.equal(allSelected(many, all), true);
+  assert.equal(allSelected(many, all.slice(1)), false);
+  assert.equal(featureTarget(many, all), true);
+  assert.equal(featureTarget(many, all.filter((id) => Number(id.slice(1)) % 2 === 0)), false);
+  const states = tagStates(many, all);
+  assert.equal(states.fan, 'all');
+  assert.equal(states.life, 'some');
+  const tagged = applyTagDiff(many, all, { add: ['new'], remove: ['life'] });
+  assert.ok(tagged.every((p, i) => (picked.has(p.id) ? p.tagIds.join() === 'fan,new' : p === many[i])));
+  const { kept, removed } = removePosts(many, all);
+  assert.equal(removed.length, all.length);
+  assert.deepEqual(restorePosts(kept, removed), many);
+  const { ok, skipped } = splitDownloadable(many, all);
+  assert.equal(ok.length + skipped.length, all.length);
+  assert.ok(skipped.every((p) => !p.media.length));
+});

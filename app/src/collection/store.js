@@ -108,6 +108,10 @@ export function CollectionProvider({ children, onNotice }) {
     [patch],
   );
 
+  // The fetcher hook returns a new object on every render; depend on its stable
+  // fetchPost so runFetch (and retry, refresh, addFromUrl… built on it) keep
+  // their identity and memoised screens don't re-render for nothing.
+  const { fetchPost } = fetcher;
   const runFetch = useCallback(
     async (id) => {
       const post = postsRef.current.find((p) => p.id === id);
@@ -115,7 +119,7 @@ export function CollectionProvider({ children, onNotice }) {
       const background = post.status === 'ready';
       const fresh = !background && !post.fetchedAt; // newly saved (or its first try failed)
       try {
-        const data = await fetcher.fetchPost(post.url);
+        const data = await fetchPost(post.url);
         const fields = fetchedFields(data);
         const existing = postsRef.current.find((p) => p.code === data.code && p.id !== id);
         if (existing) {
@@ -145,7 +149,7 @@ export function CollectionProvider({ children, onNotice }) {
         noticeRef.current?.({ kind: e.kind === 'login' ? 'login' : 'failed', id });
       }
     },
-    [fetcher, patch, setPosts, relabelAsParse, ruleTagsOnLoad],
+    [fetchPost, patch, setPosts, relabelAsParse, ruleTagsOnLoad],
   );
 
   // First launch: default tags, then old download history → cards. Then load

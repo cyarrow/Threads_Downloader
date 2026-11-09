@@ -22,7 +22,7 @@ const img = {
 };
 const still = (image, ratio, type = 'image') => ({ type, url: image, poster: image, ratio });
 
-const SAMPLES = {
+export const SAMPLES = {
   IMG: { caption: '河口湖早上六點的富士山，雲剛好散開。', media: [still(img.mountain, 0.75)] },
   CAR: {
     caption: '台南巷子裡的早午餐，蛋餅皮是現擀的，假日十點前去才不用排。',

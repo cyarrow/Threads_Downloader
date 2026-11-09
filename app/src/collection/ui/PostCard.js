@@ -85,7 +85,10 @@ function Meta({ post, kind }) {
 // `wide`: the wall is in its 3-column (tablet / landscape) layout, where a
 // full-row featured card needs a flatter image to stay within the screen.
 // `maxMediaHeight` keeps any one image from filling a short (landscape) screen.
-function PostCardImpl({ post, index, onPress, onLongPress, onRetry, wide, maxMediaHeight }) {
+// `onOpen(post)` / `onMenu(post)` / `onRetry(post)`: tap, long press, 重試. They
+// take the post so the wall can pass the same functions to every card and memo
+// skips cards whose post didn't change.
+function PostCardImpl({ post, index, onOpen, onMenu, onRetry, wide, maxMediaHeight }) {
   const t = useCollectionTheme();
   const tags = post.tagIds.map((id) => index.byId[id]).filter(Boolean);
   const hue = tags[0] ? tagHue(tags[0], index.byId) : 'slate';
@@ -111,7 +114,7 @@ function PostCardImpl({ post, index, onPress, onLongPress, onRetry, wide, maxMed
         <Text style={[t.font.meta, { color: t.mutedForeground, textAlign: 'center' }]} numberOfLines={2}>
           {post.author ? `@${post.author}` : post.url.replace(/^https:\/\/www\./, '')}
         </Text>
-        <Pressable onPress={onRetry} accessibilityRole="button" style={styles.retry}>
+        <Pressable onPress={() => onRetry(post)} accessibilityRole="button" style={styles.retry}>
           <Text style={[t.font.label, { color: t.accent }]}>重試</Text>
         </Pressable>
       </View>
@@ -142,8 +145,8 @@ function PostCardImpl({ post, index, onPress, onLongPress, onRetry, wide, maxMed
 
   return (
     <PressScale
-      onPress={onPress}
-      onLongPress={onLongPress}
+      onPress={() => onOpen(post)}
+      onLongPress={() => onMenu(post)}
       delayPressIn
       accessibilityRole="button"
       accessibilityLabel={a11y}

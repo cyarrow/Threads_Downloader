@@ -38,7 +38,7 @@ run(__filename, async ({ base, newPage, check, step, until, scheme, out }) => {
     await page.mouse.up(); await wait(600);
   };
   const visible = (loc) => loc.locator('visible=true');
-  // Stream posts on screen: one "文 ／ @author" byline each (hidden tabs are display:none).
+  // Stream posts on screen: one "文 ／ @author" byline each (hidden tabs are visibility: hidden).
   const bylines = () => visible(page.getByText(/^文 ／ @/));
   // TagChip's checked state isn't exposed as aria-checked on web; read the fill
   // instead (selected chips are filled with foreground ink).

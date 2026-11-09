@@ -1,4 +1,4 @@
-import { useCallback, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AccessibilityInfo, Animated, PanResponder, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -203,7 +203,7 @@ function DeckButton({ iconName, label, a11yLabel, onPress, disabled, big, wide }
 // accessible path; the result is announced and shown in the status line.
 // `onPick(post, done)`: open the tag sheet; call done(tagIds) when it closes.
 // `onAuthor(handle)`: the top card's @handle was tapped (opens the author page).
-export function DeckScreen({ posts, index, filter, onFilter, onOpen, onAuthor, onPick, onFeature, onSetTags, actions }) {
+function DeckScreenImpl({ posts, index, filter, onFilter, onOpen, onAuthor, onPick, onFeature, onSetTags, actions }) {
   const t = useCollectionTheme();
   const insets = useSafeAreaInsets();
   const triage = filter === UNCATEGORIZED;
@@ -379,6 +379,10 @@ export function DeckScreen({ posts, index, filter, onFilter, onOpen, onAuthor, o
     </View>
   );
 }
+
+// Memoised: it stays mounted while hidden and must not re-render for every
+// change in Home (a keystroke in 收藏's search); App.js keeps its props stable.
+export const DeckScreen = memo(DeckScreenImpl);
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },

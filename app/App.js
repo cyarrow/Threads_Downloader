@@ -18,6 +18,7 @@ import { onHardwareBack } from './src/collection/hardwareBack';
 import { backTarget, closeAuthor, openAuthor as openAuthorPage, visitTab, wallKey } from './src/collection/navModel';
 import { authorSummary, postsByAuthor } from './src/collection/authorModel';
 import { useWallSelection } from './src/collection/useWallSelection';
+import { useLatestCallback } from './src/collection/useLatestCallback';
 import { useCollectionTheme } from './src/collection/tokens';
 import { pickBackup, shareBackup } from './src/collection/backupIO';
 import { dayKey, pickRediscover } from './src/collection/rediscover';
@@ -185,7 +186,7 @@ function Home({ listenNotices }) {
     sheet?.mode === 'new' && c.rules.length
       ? { status: sheetPost?.status === 'loading' ? 'loading' : sheetPost?.status === 'failed' ? 'failed' : 'ready', hits: sheetHits || [] }
       : null;
-  const untagged = untaggedCount(c.posts);
+  const untagged = useMemo(() => untaggedCount(c.posts), [c.posts]);
   // 「N 年前的今天」/「好久沒看」 stay on the wall; its 隨機翻翻 now opens the 翻翻 tab.
   const today = useToday();
   const rediscover = useMemo(() => {
@@ -220,18 +221,18 @@ function Home({ listenNotices }) {
     setVisited((v) => visitTab(v, next));
   }, []);
   // 整理未分類 (wall banner, 所有標籤): the 翻翻 deck in its sorting mode.
-  const startTriage = () => {
+  const startTriage = useCallback(() => {
     setDeckFilter(UNCATEGORIZED);
     goTab('deck');
-  };
+  }, [goTab]);
   // 搜尋 on 翻翻 / 串流 searches the whole collection on the 收藏 wall.
-  const searchFromTab = () => {
+  const searchFromTab = useCallback(() => {
     setBrowsing(false);
     setTagPage(null);
     setAuthorPage(null);
     setSearching(true);
     goTab('home');
-  };
+  }, [goTab]);
   const setSearchOpen = (on) => {
     if (!on) setQuery('');
     setSearching(on);
@@ -346,7 +347,8 @@ function Home({ listenNotices }) {
     }
   };
 
-  const onAction = (kind, post) => {
+  // Stable (useLatestCallback): passed to every 串流 post, which are memoised.
+  const onAction = useLatestCallback((kind, post) => {
     setMenuPost(null);
     switch (kind) {
       case 'feature':
@@ -383,9 +385,9 @@ function Home({ listenNotices }) {
         break;
       default:
     }
-  };
+  });
 
-  const add = async () => {
+  const add = useLatestCallback(async () => {
     let clip = '';
     try {
       clip = await Clipboard.getStringAsync();
@@ -394,7 +396,7 @@ function Home({ listenNotices }) {
     }
     if (parseThreadsUrl(clip)) collect(clip);
     else setAddOpen(true);
-  };
+  });
 
   const onLoggedIn = () => {
     setLoginOpen(false);
@@ -421,14 +423,14 @@ function Home({ listenNotices }) {
 
   // --- 作者頁: tapping an @handle (post detail, 串流, 翻翻) opens it in 收藏;
   // back returns to the tab and post detail it was opened from.
-  const openAuthor = (handle) => {
+  const openAuthor = useLatestCallback((handle) => {
     if (!handle) return;
     const next = openAuthorPage(authorPage, handle, { tab, detailId });
     setDetailId(null);
     setMenuPost(null);
     setAuthorPage(next);
     goTab('home');
-  };
+  });
   const leaveAuthor = () => {
     const back = closeAuthor(authorPage, (id) => c.posts.some((p) => p.id === c.resolveId(id)));
     setAuthorPage(null);
@@ -491,13 +493,29 @@ function Home({ listenNotices }) {
   };
 
   const tagCount = c.tags.length;
-  const headerActions = { onAdd: add, onSearch: searchFromTab, searching: false, onSettings: () => setSettingsOpen(true) };
-  const openPost = (p) => setDetailId(p.id);
-  const openMenu = (p) => {
+  // Handlers for the memoised cards and screens keep one identity across renders,
+  // so a keystroke in search or one post changing doesn't re-render every card
+  // on the wall, the 串流 feed and the 翻翻 deck (see e2e/perf.cjs).
+  const openSettings = useCallback(() => setSettingsOpen(true), []);
+  const headerActions = useMemo(
+    () => ({ onAdd: add, onSearch: searchFromTab, searching: false, onSettings: openSettings }),
+    [add, searchFromTab, openSettings],
+  );
+  const openPost = useCallback((p) => setDetailId(p.id), []);
+  const openMenu = useCallback((p) => {
     buzz('light');
     setMenuSelectable(true);
     setMenuPost(p);
-  };
+  }, []);
+  const { retry: retryId, refresh: refreshId } = c;
+  const retryPost = useCallback((p) => retryId(p.id), [retryId]);
+  const refreshPost = useCallback((p) => refreshId(p.id), [refreshId]);
+  const clearStreamAuthor = useCallback(() => setStreamAuthor(null), []);
+  const pickDeckTags = useCallback((post, done) => {
+    afterSheet.current = done;
+    setSheetTags(post.tagIds);
+    setSheet({ mode: 'edit', postId: post.id, fromShare: false, quiet: true });
+  }, []);
 
   // Screens above the tab bar get no bottom inset (the bar takes it), so lists
   // and the download pill end above the bar; the toast is lifted over it unless
@@ -524,7 +542,7 @@ function Home({ listenNotices }) {
                 onSearching={setSearchOpen}
                 onOpen={openPost}
                 onMenu={openMenu}
-                onRetry={(p) => c.retry(p.id)}
+                onRetry={retryPost}
                 onAdd={add}
                 onSettings={() => setSettingsOpen(true)}
                 onAllTags={() => setBrowsing(true)}
@@ -577,7 +595,7 @@ function Home({ listenNotices }) {
                   onSearching={setSearchOpen}
                   onOpen={openPost}
                   onMenu={openMenu}
-                  onRetry={(p) => c.retry(p.id)}
+                  onRetry={retryPost}
                   onAdd={add}
                   onSettings={() => setSettingsOpen(true)}
                   filterBar={
@@ -630,7 +648,7 @@ function Home({ listenNotices }) {
                 onSearching={setSearchOpen}
                 onOpen={openPost}
                 onMenu={openMenu}
-                onRetry={(p) => c.retry(p.id)}
+                onRetry={retryPost}
                 emptyText={{ title: '這位作者沒有收藏了', body: '刪除的貼文可以在提示出現時按「復原」。', action: '返回' }}
                 filterBar={
                   <AuthorBar
@@ -655,11 +673,7 @@ function Home({ listenNotices }) {
                 onFilter={setDeckFilter}
                 onOpen={openPost}
                 onAuthor={openAuthor}
-                onPick={(post, done) => {
-                  afterSheet.current = done;
-                  setSheetTags(post.tagIds);
-                  setSheet({ mode: 'edit', postId: post.id, fromShare: false, quiet: true });
-                }}
+                onPick={pickDeckTags}
                 onFeature={c.setFeatured}
                 onSetTags={c.setPostTags}
                 actions={headerActions}
@@ -674,12 +688,12 @@ function Home({ listenNotices }) {
                 filter={streamFilter}
                 onFilter={setStreamFilter}
                 author={streamAuthor}
-                onClearAuthor={() => setStreamAuthor(null)}
+                onClearAuthor={clearStreamAuthor}
                 onAuthor={openAuthor}
                 active={tab === 'stream' && !detail}
                 actions={headerActions}
                 onAction={onAction}
-                onStale={(p) => c.refresh(p.id)}
+                onStale={refreshPost}
               />
             </Pane>
           )}
@@ -707,7 +721,7 @@ function Home({ listenNotices }) {
             index={index}
             onBack={() => setDetailId(null)}
             onAction={onAction}
-            onStale={(p) => c.refresh(p.id)}
+            onStale={refreshPost}
             onAuthor={openAuthor}
           />
         </View>
@@ -838,9 +852,12 @@ function Home({ listenNotices }) {
 }
 
 // A tab (or a page inside one) kept mounted while hidden, so its scroll
-// position and state survive. Web drops it from layout; native moves it off
-// screen instead (display: none can make native lists lose their scroll
-// offset). Hidden panes are removed from the accessibility tree either way.
+// position and state survive. It keeps its size either way: native moves it off
+// screen (display: none can make native lists lose their scroll offset), web
+// lays it over the visible one with visibility: hidden (in a display: none pane
+// FlashList measures every card as 0 px tall and mounts the whole list, seconds
+// of work with a few thousand posts; see e2e/perf.cjs). Hidden panes are removed
+// from the accessibility tree either way.
 function Pane({ hidden, children }) {
   return (
     <View
@@ -859,7 +876,7 @@ const styles = StyleSheet.create({
   content: { flex: 1 },
   fill: { flex: 1 },
   hidden: Platform.select({
-    web: { display: 'none' },
+    web: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', visibility: 'hidden' },
     default: { position: 'absolute', top: 100000, left: 0, width: '100%', height: '100%', opacity: 0 },
   }),
   hiddenWeb: { position: 'absolute', width: 1, height: 1, opacity: 0 },

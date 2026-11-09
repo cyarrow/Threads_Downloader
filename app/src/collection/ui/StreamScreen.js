@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -47,7 +47,7 @@ function OrderToggle({ order, onChange }) {
 // `author` (作者頁's 「用串流看 ›」) narrows the feed to one handle, shown as a
 // filled 「@handle ✕」 chip above the tags; `onClearAuthor` drops it.
 // `onAuthor(handle)`: a post's byline was tapped (opens that author's page).
-export function StreamScreen({ posts, index, filter, onFilter, author, onClearAuthor, onAuthor, active, actions, onAction, onStale }) {
+function StreamScreenImpl({ posts, index, filter, onFilter, author, onClearAuthor, onAuthor, active, actions, onAction, onStale }) {
   const t = useCollectionTheme();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
@@ -141,6 +141,10 @@ export function StreamScreen({ posts, index, filter, onFilter, author, onClearAu
     </View>
   );
 }
+
+// Memoised: it stays mounted while hidden and must not re-render for every
+// change in Home (a keystroke in 收藏's search); App.js keeps its props stable.
+export const StreamScreen = memo(StreamScreenImpl);
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },

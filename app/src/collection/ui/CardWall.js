@@ -151,9 +151,9 @@ export function CardWall({
             <PostCard
               post={item}
               index={index}
-              onPress={() => onOpen(item)}
-              onLongPress={() => onMenu(item)}
-              onRetry={() => onRetry(item)}
+              onOpen={onOpen}
+              onMenu={onMenu}
+              onRetry={onRetry}
               wide={columns >= 3}
               maxMediaHeight={Math.round(height * 0.55)}
             />

@@ -1,5 +1,7 @@
 // Pure helpers for selecting many cards and editing them at once.
 // A tag's state across the selection: 'all' | 'some' | 'none'.
+// Selections can hold thousands of ids (全選 on a big wall), so lookups go
+// through a Set: `ids.includes` inside a loop over every post was O(posts × ids).
 
 export function toggleId(list, id) {
   return list.includes(id) ? list.filter((x) => x !== id) : [...list, id];
@@ -15,9 +17,10 @@ export function pruneSelection(selected, visiblePosts) {
 
 // { tagId: count } over the selected posts.
 export function tagCounts(posts, ids) {
+  const picked = new Set(ids);
   const counts = {};
   for (const p of posts) {
-    if (!ids.includes(p.id)) continue;
+    if (!picked.has(p.id)) continue;
     for (const id of p.tagIds) counts[id] = (counts[id] || 0) + 1;
   }
   return counts;
@@ -25,7 +28,8 @@ export function tagCounts(posts, ids) {
 
 // { tagId: 'all' | 'some' } — tags on none of the posts are simply absent.
 export function tagStates(posts, ids) {
-  const n = posts.filter((p) => ids.includes(p.id)).length;
+  const picked = new Set(ids);
+  const n = posts.filter((p) => picked.has(p.id)).length;
   const states = {};
   for (const [id, count] of Object.entries(tagCounts(posts, ids))) states[id] = count === n ? 'all' : 'some';
   return states;
@@ -53,8 +57,9 @@ export function diffStates(initial, current) {
 }
 
 export function applyTagDiff(posts, ids, { add, remove }) {
+  const picked = new Set(ids);
   return posts.map((p) => {
-    if (!ids.includes(p.id)) return p;
+    if (!picked.has(p.id)) return p;
     const kept = p.tagIds.filter((id) => !remove.includes(id));
     const tagIds = [...kept, ...add.filter((id) => !kept.includes(id))];
     return { ...p, tagIds };
@@ -63,9 +68,10 @@ export function applyTagDiff(posts, ids, { add, remove }) {
 
 // Removes the selected posts and remembers where they were, for 復原.
 export function removePosts(posts, ids) {
+  const picked = new Set(ids);
   const removed = [];
   const kept = [];
-  posts.forEach((p, at) => (ids.includes(p.id) ? removed.push({ post: p, at }) : kept.push(p)));
+  posts.forEach((p, at) => (picked.has(p.id) ? removed.push({ post: p, at }) : kept.push(p)));
   return { kept, removed };
 }
 
@@ -78,10 +84,11 @@ export function restorePosts(posts, removed) {
 
 // Splits a selection into posts we can download and ones we can't (and why).
 export function splitDownloadable(posts, ids) {
+  const picked = new Set(ids);
   const ok = [];
   const skipped = [];
   for (const p of posts) {
-    if (!ids.includes(p.id)) continue;
+    if (!picked.has(p.id)) continue;
     if (p.status === 'sourceDeleted' || p.status === 'failed' || p.status === 'loading' || !p.media?.length) skipped.push(p);
     else ok.push(p);
   }
@@ -100,12 +107,14 @@ export function selectableIds(posts) {
 
 export function allSelected(posts, ids) {
   const all = selectableIds(posts);
-  return all.length > 0 && all.every((id) => ids.includes(id));
+  const picked = new Set(ids);
+  return all.length > 0 && all.every((id) => picked.has(id));
 }
 
 // The 精選 button sets every selected post as featured, unless all of them
 // already are; then it reads 取消精選 and clears it. Returns the value to set.
 export function featureTarget(posts, ids) {
-  const sel = posts.filter((p) => ids.includes(p.id));
+  const picked = new Set(ids);
+  const sel = posts.filter((p) => picked.has(p.id));
   return !(sel.length > 0 && sel.every((p) => p.featured));
 }

@@ -45,7 +45,9 @@ jobs:
 
       - run: npm ci
       - run: npm test
-      - run: npx expo lint
+      # Bare `npx expo lint` only covers src/ (it defaults to src, app, components);
+      # `npm run lint` lints the whole app (App.js, e2e/, test/ too) and fails on warnings.
+      - run: npm run lint
 
       - name: Generate Android project
         run: npx expo prebuild --platform android --no-install

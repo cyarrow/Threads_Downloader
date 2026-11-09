@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BackHandler, Linking, Platform, StyleSheet, ToastAndroid, View } from 'react-native';
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
+import { AppState, BackHandler, Linking, Platform, StyleSheet, ToastAndroid, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as Clipboard from 'expo-clipboard';
 import Constants from 'expo-constants';
@@ -20,14 +20,13 @@ import { authorSummary, postsByAuthor } from './src/collection/authorModel';
 import { useWallSelection } from './src/collection/useWallSelection';
 import { useCollectionTheme } from './src/collection/tokens';
 import { pickBackup, shareBackup } from './src/collection/backupIO';
-import { pickRediscover } from './src/collection/rediscover';
+import { dayKey, pickRediscover } from './src/collection/rediscover';
 import { suggestTags } from './src/collection/suggest';
 import { withRuleTags } from './src/collection/tagRules';
 import { NoteSheet } from './src/collection/ui/Notes';
 import { RuleEditSheet, RulesPage, ruleResultToast } from './src/collection/ui/TagRules';
 import { RediscoverCard, TagManager } from './src/collection/ui/Phase2';
-import { SecondaryButton } from './src/collection/ui/base';
-import { buzz } from './src/collection/ui/base';
+import { SecondaryButton, buzz } from './src/collection/ui/base';
 import { CardWall } from './src/collection/ui/CardWall';
 import { DeckScreen } from './src/collection/ui/DeckScreen';
 import { StreamScreen } from './src/collection/ui/StreamScreen';
@@ -62,14 +61,37 @@ export default function App() {
 }
 
 function Root() {
-  const [notice, setNotice] = useState(null);
-  const onNotice = useCallback((n) => setNotice({ ...n, at: Date.now() }), []);
+  // The store reports notices from its async work; Home (inside the provider)
+  // registers the handler that shows them, so they arrive as events, not state.
+  const noticeHandler = useRef(null);
+  const onNotice = useCallback((n) => noticeHandler.current?.(n), []);
+  const listenNotices = useCallback((fn) => {
+    noticeHandler.current = fn;
+    return () => {
+      if (noticeHandler.current === fn) noticeHandler.current = null;
+    };
+  }, []);
   useBrandFont();
   return (
     <CollectionProvider onNotice={onNotice}>
-      <Home notice={notice} />
+      <Home listenNotices={listenNotices} />
     </CollectionProvider>
   );
+}
+
+// The wall's 回顧 card is picked per calendar day. The clock is read when the app
+// starts and again when it comes back to the foreground on a later day.
+function useToday() {
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next !== 'active') return;
+      const t = Date.now();
+      setNow((prev) => (dayKey(prev) === dayKey(t) ? prev : t));
+    });
+    return () => sub.remove();
+  }, []);
+  return now;
 }
 
 // Toast that survives leaving the app (shown over Threads); in-app toast otherwise.
@@ -81,14 +103,11 @@ function leaveToThreads() {
   if (Platform.OS === 'android') setTimeout(() => BackHandler.exitApp(), RETURN_DELAY_MS);
 }
 
-function Home({ notice }) {
+function Home({ listenNotices }) {
   const t = useCollectionTheme();
   const c = useCollection();
   const index = useMemo(() => indexTags(c.tags), [c.tags]);
   const { hasShareIntent, shareIntent, resetShareIntent } = useShareIntent();
-  const { markDownloaded } = c;
-  const onSaved = useCallback((entry) => markDownloaded(entry.code), [markDownloaded]);
-  const dl = useDownloader({ onSaved });
 
   const [filter, setFilter] = useState([]);
   const [query, setQuery] = useState('');
@@ -125,6 +144,20 @@ function Home({ notice }) {
   const pendingDownloads = useRef(new Map()); // postId → { fromShare }
   const downloadAfterLogin = useRef(false);
   const hideToast = useCallback(() => setToast(null), []);
+  const { markDownloaded } = c;
+  const onSaved = useCallback((entry) => markDownloaded(entry.code), [markDownloaded]);
+  // A finished download: in-app toast, or (shared from Threads) a system toast
+  // and back to Threads, since nothing else is queued by then.
+  const onDownloadDone = useCallback((result) => {
+    const message = `已存到相簿：${summary(result)}`;
+    if (result.fromShare) {
+      systemToast(message);
+      leaveToThreads();
+    } else {
+      setToast({ message });
+    }
+  }, []);
+  const dl = useDownloader({ onSaved, onDone: onDownloadDone });
 
   // --- 自動標籤規則 + 個人筆記 (ui/TagRules.js, ui/Notes.js) ---
   const [sheetNote, setSheetNote] = useState(''); // 「加一句筆記…」 in the save sheet
@@ -154,10 +187,11 @@ function Home({ notice }) {
       : null;
   const untagged = untaggedCount(c.posts);
   // 「N 年前的今天」/「好久沒看」 stay on the wall; its 隨機翻翻 now opens the 翻翻 tab.
+  const today = useToday();
   const rediscover = useMemo(() => {
     if (rediscoverHidden || filter.length || appliedQuery.trim()) return null;
-    return pickRediscover(c.posts, Date.now());
-  }, [c.posts, filter, appliedQuery, rediscoverHidden]);
+    return pickRediscover(c.posts, today);
+  }, [c.posts, filter, appliedQuery, rediscoverHidden, today]);
   const pageTag = browsing && tagPage ? index.byId[tagPage] : null;
   const pagePosts = useMemo(
     () => (pageTag ? filterPosts(c.posts, [tagChild || pageTag.id], appliedQuery, index) : []),
@@ -214,10 +248,9 @@ function Home({ notice }) {
     if (releasesRepo && buildNumber) checkForUpdate(releasesRepo, buildNumber).then(setUpdate);
   }, [releasesRepo, buildNumber]);
 
-  // Saves a link as a card and opens the save sheet (or the edit sheet if it's
-  // already saved). Returns 'added' | 'exists' | 'invalid'.
-  const collect = async (text, { fromShare = false } = {}) => {
-    const res = await c.addFromUrl(text);
+  // Opens the save sheet for a just-collected link (or the edit sheet if it was
+  // already saved). Returns the status.
+  const openCollected = (res, fromShare) => {
     if (res.status === 'invalid') {
       setToast({ message: '這不是 Threads 貼文連結' });
       return 'invalid';
@@ -234,14 +267,19 @@ function Home({ notice }) {
     if (existing) setToast({ message: '這篇已經收藏過，可以直接改標籤' });
     return res.status;
   };
+  // Saves a link as a card and opens its sheet. Resolves to 'added' | 'exists' |
+  // 'invalid'. State is only set once the store has answered, so the
+  // share-intent effect below can call it.
+  const collect = (text, { fromShare = false } = {}) => c.addFromUrl(text).then((res) => openCollected(res, fromShare));
 
   // "Share → Threads 下載" from the Threads app. Waits until the collection has loaded.
-  useEffect(() => {
-    if (!hasShareIntent || !c.ready) return;
+  const takeShare = useEffectEvent(() => {
     const text = shareIntent.webUrl || shareIntent.text || '';
     resetShareIntent();
     collect(text, { fromShare: true });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  });
+  useEffect(() => {
+    if (hasShareIntent && c.ready) takeShare();
   }, [hasShareIntent, c.ready]);
 
   // Downloads start once the card's details are in (share links only resolve then).
@@ -264,28 +302,16 @@ function Home({ notice }) {
     }
   }, [c.posts, c, dl]);
 
-  // After a share-started download finishes (and nothing else is queued), go back to Threads.
-  useEffect(() => {
-    const s = dl.state;
-    if (s.phase !== 'done') return;
-    const message = `已存到相簿：${summary(s)}`;
-    if (s.fromShare) {
-      systemToast(message);
-      if (dl.queued === 0) leaveToThreads();
-    } else {
-      setToast({ message });
-    }
-    // Only react to a new result, not to the queue shrinking as the next item starts.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dl.state]);
-
-  useEffect(() => {
-    if (!notice) return;
-    if (notice.kind === 'duplicate') setToast({ message: '這篇之前收藏過了，標籤已合併到原本的卡片' });
-    else if (notice.kind === 'login') setLoginOpen(true);
-    else if (notice.kind === 'failed') setToast({ message: '有一篇貼文讀取失敗，可以在卡片上重試' });
-    else if (notice.kind === 'saveFailed') setToast({ message: '剛才的變更沒有存進資料庫，畫面已還原成儲存的內容' });
-  }, [notice]);
+  useEffect(
+    () =>
+      listenNotices((notice) => {
+        if (notice.kind === 'duplicate') setToast({ message: '這篇之前收藏過了，標籤已合併到原本的卡片' });
+        else if (notice.kind === 'login') setLoginOpen(true);
+        else if (notice.kind === 'failed') setToast({ message: '有一篇貼文讀取失敗，可以在卡片上重試' });
+        else if (notice.kind === 'saveFailed') setToast({ message: '剛才的變更沒有存進資料庫，畫面已還原成儲存的內容' });
+      }),
+    [listenNotices],
+  );
 
   // Applies the picked tags. Closing the sheet keeps them too, so nothing is lost.
   // `tags`: a quick-panel tap passes its one tag instead of the picker's selection.
@@ -393,6 +419,23 @@ function Home({ notice }) {
     setTimeout(() => setRefreshing(false), 600);
   };
 
+  // --- 作者頁: tapping an @handle (post detail, 串流, 翻翻) opens it in 收藏;
+  // back returns to the tab and post detail it was opened from.
+  const openAuthor = (handle) => {
+    if (!handle) return;
+    const next = openAuthorPage(authorPage, handle, { tab, detailId });
+    setDetailId(null);
+    setMenuPost(null);
+    setAuthorPage(next);
+    goTab('home');
+  };
+  const leaveAuthor = () => {
+    const back = closeAuthor(authorPage, (id) => c.posts.some((p) => p.id === c.resolveId(id)));
+    setAuthorPage(null);
+    if (back.tab !== 'home') goTab(back.tab);
+    if (back.detailId) setDetailId(back.detailId);
+  };
+
   // Android back closes the topmost layer first; the wall stays mounted underneath
   // so its scroll position and filters survive.
   useEffect(() => {
@@ -454,23 +497,6 @@ function Home({ notice }) {
     buzz('light');
     setMenuSelectable(true);
     setMenuPost(p);
-  };
-
-  // --- 作者頁: tapping an @handle (post detail, 串流, 翻翻) opens it in 收藏;
-  // back returns to the tab and post detail it was opened from.
-  const openAuthor = (handle) => {
-    if (!handle) return;
-    const next = openAuthorPage(authorPage, handle, { tab, detailId });
-    setDetailId(null);
-    setMenuPost(null);
-    setAuthorPage(next);
-    goTab('home');
-  };
-  const leaveAuthor = () => {
-    const back = closeAuthor(authorPage, (id) => c.posts.some((p) => p.id === c.resolveId(id)));
-    setAuthorPage(null);
-    if (back.tab !== 'home') goTab(back.tab);
-    if (back.detailId) setDetailId(back.detailId);
   };
 
   // Screens above the tab bar get no bottom inset (the bar takes it), so lists

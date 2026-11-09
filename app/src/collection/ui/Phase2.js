@@ -1,4 +1,5 @@
-// Phase 2 screens: tag manager, triage of 未分類 posts, and the rediscover card.
+// Phase 2 screens: tag manager and the rediscover card. (未分類 triage is the
+// 翻翻 deck's 未分類 mode now.)
 import { useMemo, useRef, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Image } from 'expo-image';
@@ -7,11 +8,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { tagNameError } from '../collectionModel';
 import { cardStill } from '../media';
 import { TAG_HUES } from '../palette';
-import { reasonText, suggestTags } from '../suggest';
 import { tagHue, tagLabel } from '../tagModel';
 import { BRAND_FONT, TOUCH, icon, space, useCollectionTheme } from '../tokens';
 import { IconButton, PrimaryButton, SecondaryButton, Sheet, TagChip, useKeyboardOverlap } from './base';
-import { PhotoBack, Print, SprocketRule, TagMark } from './theme';
+import { SprocketRule, TagMark } from './theme';
 
 // Full-screen page (標籤管理, 自動標籤規則): back arrow + title, content, optional footer.
 export function Page({ title, onClose, children, footer }) {
@@ -226,103 +226,6 @@ export function TagManager({ posts, index, rules, onClose, onRename, onRecolor, 
   );
 }
 
-// --- Triage: give 未分類 posts a tag, one at a time -----------------------------
-
-export function Triage({ posts, index, onClose, onTag, onMoreTags }) {
-  const t = useCollectionTheme();
-  // The queue is fixed when triage opens so cards don't jump while tagging.
-  const [queue] = useState(() => posts.filter((p) => !p.tagIds.length && p.status === 'ready').map((p) => p.id));
-  const [pos, setPos] = useState(0);
-  const [done, setDone] = useState({ tagged: 0, skipped: 0 });
-  const post = posts.find((p) => p.id === queue[pos]);
-  const finished = pos >= queue.length;
-  const suggestions = post ? suggestTags(post, posts, index) : [];
-  const still = post && cardStill(post);
-
-  const next = (kind) => {
-    setDone((d) => ({ ...d, [kind]: d[kind] + 1 }));
-    setPos((i) => i + 1);
-  };
-
-  return (
-    <Page title={finished ? '整理完成' : `整理未分類 ${Math.min(pos + 1, queue.length)}/${queue.length}`} onClose={onClose}>
-      {finished ? (
-        <View style={styles.center}>
-          <Ionicons name="checkmark-circle" size={56} color={t.success} />
-          <Text style={[t.font.title, { color: t.foreground }]}>這次分類了 {done.tagged} 篇</Text>
-          <View style={[styles.shortRule, { backgroundColor: t.foreground }]} />
-          {done.skipped > 0 && <Text style={[t.font.body, { color: t.mutedForeground }]}>略過 {done.skipped} 篇，之後可以再整理</Text>}
-          <PrimaryButton title="回到收藏" onPress={onClose} />
-        </View>
-      ) : post ? (
-        <>
-          {/* Progress as a thin ink rule growing along a hairline. */}
-          <View style={[styles.progress, { backgroundColor: t.border }]} accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: queue.length, now: pos }}>
-            <View style={[styles.progressBar, { backgroundColor: t.foreground, width: `${(pos / queue.length) * 100}%` }]} />
-          </View>
-          <ScrollView contentContainerStyle={styles.triageBody}>
-            {/* The post as it sits on the wall: no box, image, kicker, words, meta, rule
-                (底片: a print, or the back of a photo for a text-only post). */}
-            <View style={[styles.triageCard, { borderBottomColor: t.border }, t.printFrame && styles.unruled]}>
-              {still && (
-                <Print savedAt={post.savedAt} kind={post.media[0]?.type === 'video' ? 'video' : post.media.length > 1 ? 'multi' : null} count={post.media.length} style={styles.mediaGap}>
-                  <Image source={still} style={[styles.triageImage, { backgroundColor: t.muted }]} contentFit="cover" accessible={false} />
-                </Print>
-              )}
-              {!still && !!post.caption && t.textCard === 'lined' && (
-                <PhotoBack hue="slate" text={post.caption} savedAt={post.savedAt} numberOfLines={6} style={styles.mediaGap} />
-              )}
-              <View style={styles.kickerRow}>
-                <TagMark hue="slate" />
-                <Text style={[t.font.kicker, { color: t.mutedForeground }]}>未分類</Text>
-              </View>
-              {!!post.caption && (still || t.textCard !== 'lined') && (
-                <Text style={[still ? t.font.card : t.font.quote, { color: t.foreground }]} numberOfLines={still ? 3 : 6}>
-                  {post.caption}
-                </Text>
-              )}
-              <Text style={[t.font.caption, { color: t.mutedForeground }]}>@{post.author}</Text>
-            </View>
-          </ScrollView>
-          <View style={styles.triageActions}>
-            {suggestions.map(({ tag, reasons }) => (
-              // Suggested tag as a large outlined chip: tag marker + 大標籤 › 小標籤, reason below.
-              <Pressable
-                key={tag.id}
-                onPress={() => {
-                  onTag(post.id, [tag.id]);
-                  next('tagged');
-                }}
-                accessibilityRole="button"
-                accessibilityLabel={`放到 ${tagLabel(tag, index.byId)}，${reasonText(reasons)}`}
-                style={({ pressed }) => [styles.bigTag, { borderRadius: t.radius.sm, borderColor: t.outline, opacity: pressed ? 0.75 : 1 }]}
-              >
-                <TagMark hue={tagHue(tag, index.byId)} size="md" />
-                <View style={styles.flex}>
-                  <Text style={[t.font.headline, { color: t.foreground }]}>{tagLabel(tag, index.byId)}</Text>
-                  <Text style={[t.font.meta, { color: t.mutedForeground }]} numberOfLines={1}>
-                    {reasonText(reasons)}
-                  </Text>
-                </View>
-                <Ionicons name="arrow-forward" size={icon.md} color={t.foreground} />
-              </Pressable>
-            ))}
-            <View style={styles.row}>
-              <SecondaryButton title="其他標籤" iconName="pricetags-outline" onPress={() => onMoreTags(post, () => next('tagged'))} />
-              <SecondaryButton title="略過" iconName="play-skip-forward-outline" onPress={() => next('skipped')} />
-            </View>
-          </View>
-        </>
-      ) : (
-        <View style={styles.center}>
-          <Text style={[t.font.body, { color: t.mutedForeground }]}>沒有需要整理的貼文。</Text>
-          <PrimaryButton title="回到收藏" onPress={onClose} />
-        </View>
-      )}
-    </Page>
-  );
-}
-
 // --- Rediscover card on the wall ----------------------------------------------
 
 export function RediscoverCard({ pick, onOpen, onShuffle, onDismiss }) {
@@ -396,8 +299,6 @@ const styles = StyleSheet.create({
   },
   tagRowChild: { minHeight: TOUCH, paddingLeft: space.sm + 20 },
   markSmall: { marginHorizontal: 1 },
-  unruled: { borderBottomWidth: 0 },
-  mediaGap: { marginBottom: 2 },
   stripTop: { borderTopWidth: 0, paddingTop: 0 },
   count: { letterSpacing: 0.5, fontVariant: ['tabular-nums'] },
   fieldLabel: { marginTop: space.xs },
@@ -411,24 +312,7 @@ const styles = StyleSheet.create({
   swatch: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
   row: { flexDirection: 'row', gap: space.sm },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: space.md, padding: space.xl },
-  shortRule: { width: 32, height: 2 },
-  progress: { height: 2, marginHorizontal: GUTTER, marginTop: space.lg },
-  progressBar: { height: 2 },
-  triageBody: { paddingHorizontal: GUTTER, paddingTop: space.lg },
-  triageCard: { gap: space.sm, paddingBottom: 14, borderBottomWidth: RULE },
-  triageImage: { width: '100%', aspectRatio: 4 / 3 },
   kickerRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  triageActions: { paddingHorizontal: GUTTER, paddingVertical: space.lg, gap: space.sm },
-  bigTag: {
-    minHeight: 60,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.md,
-    borderWidth: 1,
-    paddingHorizontal: space.lg,
-    paddingVertical: space.sm,
-  },
   rediscover: { borderTopWidth: 2, borderBottomWidth: RULE, paddingTop: space.sm, paddingBottom: space.xs, gap: space.md },
   rediscoverHead: { flexDirection: 'row', alignItems: 'flex-start', gap: space.sm, marginRight: -space.sm },
   thumbs: { flexDirection: 'row', gap: space.sm },

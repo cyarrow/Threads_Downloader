@@ -11,7 +11,6 @@ import {
   mixHex,
   normalizeThemeId,
   tagStyle,
-  themeColors,
 } from '../src/collection/themes.js';
 import { TAG_HUES } from '../src/collection/palette.js';
 
@@ -62,8 +61,6 @@ test('unknown or missing theme ids fall back to the default', () => {
   assert.equal(normalizeThemeId('film'), 'film');
   assert.equal(normalizeThemeId(null), 'editorial');
   assert.equal(normalizeThemeId('nope'), 'editorial');
-  assert.equal(themeColors('nope', 'dark'), THEMES.editorial.colors.dark);
-  assert.equal(themeColors('film', 'weird'), THEMES.film.colors.light);
 });
 
 test('tagStyle returns a complete surface + text set for every hue, theme and scheme', () => {

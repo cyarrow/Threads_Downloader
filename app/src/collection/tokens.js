@@ -4,31 +4,7 @@
 import { createContext, createElement, useContext, useMemo } from 'react';
 import { Platform, useColorScheme } from 'react-native';
 import { TAG_COLORS } from './palette.js';
-import { DEFAULT_THEME, THEMES, THEME_IDS, mixHex, normalizeThemeId, tagStyle } from './themes.js';
-
-export { TAG_COLORS };
-
-// Chip colors for a tag hue in the 雜誌 theme; selected chips invert to a solid
-// fill and must also show a checkmark (color is never the only signal).
-// Theme-aware screens use `t.tag(hue)` from useCollectionTheme() instead.
-export function tagColors(hue, scheme, selected) {
-  const c = TAG_COLORS[hue] || TAG_COLORS.slate;
-  if (scheme === 'dark') {
-    return selected
-      ? { bg: c.darkText, text: '#000000', dot: c.dot }
-      : { bg: `${c.dot}33`, text: c.darkText, dot: c.dot }; // 0x33 ≈ 20% over card
-  }
-  return selected
-    ? { bg: c.lightText, text: '#FFFFFF', dot: c.dot }
-    : { bg: c.lightBg, text: c.lightText, dot: c.dot };
-}
-
-// Tag-tinted paper for 雜誌 text-only cards: the light tint, or the hue at 20% over
-// the dark card. Theme-aware screens use `t.tag(hue).paper` with `.onPaper`.
-export function tagTint(hue, scheme, card) {
-  const c = TAG_COLORS[hue] || TAG_COLORS.slate;
-  return scheme !== 'dark' ? c.lightBg : mixHex(c.dot, card, 0.2);
-}
+import { DEFAULT_THEME, THEMES, THEME_IDS, normalizeThemeId, tagStyle } from './themes.js';
 
 // LXGW WenKai TC (subset, see app/assets/fonts): a regular-script face with a
 // light handwritten warmth. Used for headings and the posts' own words; small

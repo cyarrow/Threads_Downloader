@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { ageLabel, dayKey, onThisDay, pickRediscover, randomPicks, seededShuffle } from '../src/collection/rediscover.js';
+import { dayKey, onThisDay, pickRediscover, seededShuffle } from '../src/collection/rediscover.js';
 
 const at = (y, m, d, h = 12) => new Date(y, m - 1, d, h).getTime();
 const now = at(2026, 10, 29, 9);
@@ -52,19 +52,6 @@ test('seededShuffle is deterministic and keeps every item', () => {
   assert.deepEqual(list, [1, 2, 3, 4, 5, 6, 7, 8], 'input untouched');
 });
 
-test('randomPicks: n browsable posts, a new round gives a new order', () => {
-  const r0 = randomPicks(posts, now, 3);
-  assert.equal(r0.length, 3);
-  assert.ok(r0.every((p) => p.status !== 'failed'));
-  assert.deepEqual(randomPicks(posts, now, 3), r0);
-  assert.notDeepEqual(randomPicks(posts, now, 7, 1), randomPicks(posts, now, 7, 0));
-});
-
-test('dayKey and ageLabel', () => {
+test('dayKey', () => {
   assert.equal(dayKey(at(2026, 3, 5)), '2026-03-05');
-  assert.equal(ageLabel(at(2026, 10, 29, 1), now), '今天');
-  assert.equal(ageLabel(at(2026, 10, 26), now), '2 天前');
-  assert.equal(ageLabel(at(2026, 8, 1), now), '2 個月前');
-  assert.equal(ageLabel(at(2025, 10, 29, 21), now), '一年前');
-  assert.equal(ageLabel(at(2023, 11, 1), now), '2 年前');
 });

@@ -1,5 +1,5 @@
 // Image source for expo-image from a stored value: a bundled asset (a number on
-// native, an { uri } object on web — used by the prototype/E2E fake data), or a
+// native, an { uri } object on web — used by the E2E fake data), or a
 // file:// / https:// URI string.
 export function imageSource(value) {
   if (!value) return null;

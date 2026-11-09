@@ -282,8 +282,7 @@
 
 ## 15. 介面雛形
 
-- 位置：`app/prototype/PrototypeApp.js`（假資料在 `app/src/collection/mock/`），元件在 `app/src/collection/ui/`，正式實作直接沿用這些元件，把假資料換成資料庫。
-- 建置：`cd app && npm run prototype:web`（輸出到 `app/dist-prototype/`，不進版控）。
+- 已退役：雛形（`app/prototype/PrototypeApp.js`、假資料 `app/src/collection/mock/data.js`、`npm run prototype:web`）在正式版完成後移除。元件仍在 `app/src/collection/ui/`；網頁版的瀏覽器測試改用 `*.web.js` 替身（`app/src/collection/mock/` 只剩替身用的圖片），見 `app/e2e/README.md`。以下是當時的紀錄。
 - 發佈成網頁（claude.ai Artifact）時要調整兩件事：bundle 裡的 `"/assets/` 改成相對路徑 `"./assets/`；bundle 不能放在 `_expo/` 這種底線開頭的資料夾（服務保留），改放 `js/app.js`。只需附上用到的圖示字型（Ionicons）。
 - 2026-10-29 驗證：360 寬淺色、412 寬深色、800×400 橫向；12 個操作步驟（篩選、長按選單、內容頁、收藏面板讀取→選標籤→新增標籤錯誤→新增成功→完成、搜尋無結果）全部通過，無錯誤。
 
@@ -342,7 +341,7 @@ const t = useCollectionTheme();
 
 **規則**
 1. **文字顏色和它底下的面一起選。** 文字只能用和底色同一組的 token：頁面 / 面板上用 `foreground`、`mutedForeground`、`accent`、`danger`；標籤卡紙上用 `t.tag(hue).onPaper` / `.onPaperMuted`（紙用 `.paper`）；相片白邊上用 `onEdge` / `onEdgeMuted`；照片上的小標示用 `badge` + `onBadge`；墨色填滿（已選標籤、提示、按下的列）上用 `background`（或面板上用 `card`）。**不要**把某主題的底色配另一組的字色，也不要自己算色票（之前預覽就是深色標籤底配深色字才看不見）。
-2. 舊的 `tagColors()`、`tagTint()`、`font`、`radius` 仍可 import（等於雜誌的值），只為了還沒改的檔案能編譯；新畫面一律用 `t.*`。
+2. 舊的 `font`、`radius` 仍可 import（等於雜誌的值），只為了還沒改的檔案能編譯；新畫面一律用 `t.*`。（`tagColors()`、`tagTint()` 已沒人用，已移除。）
 3. 照片上只放三種東西：日期壓印（只在 `t.printFrame`）、▶ 影片、N 張。不要序號（No.11、ROLL、FRAME）、不要英文分頁名。
 4. 影片播放時把日期壓印藏起來（`imprint={false}`），免得蓋住原生控制列。
 5. 改任何色碼後跑 `contrast_check_themes.py`。

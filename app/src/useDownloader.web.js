@@ -6,7 +6,7 @@ import { parseThreadsUrl } from './threads';
 const STEP_MS = 400;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-export function useDownloader({ onSaved } = {}) {
+export function useDownloader({ onSaved, onDone } = {}) {
   const [state, setState] = useState({ phase: 'idle' });
   const [queued, setQueued] = useState(0);
   const queue = useRef([]);
@@ -14,12 +14,14 @@ export function useDownloader({ onSaved } = {}) {
   const choice = useRef(null);
   const last = useRef(null);
   const saved = useRef(onSaved);
+  const finished = useRef(onDone);
   const runRef = useRef(null);
   const [working, setWorking] = useState(false);
 
   useEffect(() => {
     saved.current = onSaved;
-  }, [onSaved]);
+    finished.current = onDone;
+  }, [onSaved, onDone]);
 
   const run = useCallback(async (code, fromShare) => {
     busy.current = true;
@@ -51,13 +53,15 @@ export function useDownloader({ onSaved } = {}) {
       setState({ phase: 'saving', done, total });
       await sleep(STEP_MS);
     }
-    setState({ phase: 'done', videos: 0, images: total, fromShare });
+    const result = { phase: 'done', videos: 0, images: total, fromShare };
+    setState(result);
     saved.current?.({ code });
     busy.current = false;
     setWorking(false);
     const next = queue.current.shift();
     setQueued(queue.current.length);
     if (next) runRef.current(next.code, next.fromShare);
+    else finished.current?.(result);
   }, []);
 
   useEffect(() => {

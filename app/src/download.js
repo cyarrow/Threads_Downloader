@@ -35,7 +35,11 @@ async function saveToLibrary(uri, album) {
 // Returns the number of files saved.
 export async function saveAll(code, media, onProgress) {
   const { granted } = await requestPermissionsAsync(true);
-  if (!granted) throw new Error('需要相簿權限才能儲存媒體');
+  if (!granted) {
+    const error = new Error('需要相簿權限才能儲存媒體');
+    error.permission = true;
+    throw error;
+  }
 
   const dir = new Directory(Paths.cache, 'threads');
   if (!dir.exists) dir.create();

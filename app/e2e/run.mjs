@@ -31,6 +31,7 @@ const SUITES = [
   { name: 'video' },
   { name: 'fetch-health' },
   { name: 'update' },
+  { name: 'collector' },
 ];
 const SCHEMES = ['light', 'dark'];
 

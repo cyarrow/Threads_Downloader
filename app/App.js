@@ -19,6 +19,7 @@ import { useWallState } from './src/collection/useWallState';
 import { useLatestCallback } from './src/collection/useLatestCallback';
 import { useCollectionTheme } from './src/collection/tokens';
 import { pickBackup, shareBackup } from './src/collection/backupIO';
+import { speedLabel } from './src/collection/fetchSpeed';
 import { NoteSheet } from './src/collection/ui/Notes';
 import { RuleEditSheet, RulesPage, ruleResultToast } from './src/collection/ui/TagRules';
 import { TagManager } from './src/collection/ui/Phase2';
@@ -465,6 +466,7 @@ function Home({ listenNotices }) {
         updateStatus={update.settingsStatus}
         version={update.version}
         stats={`${c.posts.length} 篇 · ${c.tags.length} 個標籤`}
+        readSpeed={settingsOpen ? speedLabel(c.fetchSpeed?.summary()) : null}
         quickSave={c.quickSave}
         onQuickSave={c.setQuickSave}
       />

@@ -323,7 +323,7 @@ function SettingsRow({ iconName, label, value, onPress }) {
   );
 }
 
-export function SettingsSheet({ visible, onClose, onLogin, onTags, onRules, rulesCount = 0, onExport, onImport, onCheckUpdate, updateStatus, version, stats, quickSave, onQuickSave }) {
+export function SettingsSheet({ visible, onClose, onLogin, onTags, onRules, rulesCount = 0, onExport, onImport, onCheckUpdate, updateStatus, version, stats, readSpeed, quickSave, onQuickSave }) {
   return (
     <Sheet visible={visible} onClose={onClose} title="設定">
       <ScrollView style={styles.pickerScroll} contentContainerStyle={styles.settings}>
@@ -339,6 +339,7 @@ export function SettingsSheet({ visible, onClose, onLogin, onTags, onRules, rule
         <SettingsRow iconName="person-circle-outline" label="登入或切換 Threads 帳號" onPress={onLogin} />
         <SettingsRow iconName="cloud-download-outline" label="檢查更新" value={updateStatus} onPress={onCheckUpdate} />
         <SettingsRow iconName="albums-outline" label="收藏" value={stats} />
+        {!!readSpeed && <SettingsRow iconName="speedometer-outline" label="讀取一篇" value={readSpeed} />}
         <SettingsRow iconName="information-circle-outline" label="版本" value={version} />
         <SettingsRow iconName="text-outline" label="字型" value="霞鶩文楷 TC、IBM Plex Mono · SIL OFL 1.1" />
       </ScrollView>

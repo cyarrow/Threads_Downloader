@@ -27,6 +27,7 @@ export function useDownloader({ onSaved, onDone } = {}) {
   const [queued, setQueued] = useState(0);
   const webRef = useRef(null);
   const last = useRef(null); // { url, fromShare } of the current/latest request, for retry
+  const saveRef = useRef(null); // save(), for run() which is defined before it
   const savedCallback = useRef(onSaved);
   const doneCallback = useRef(onDone);
   // Mirrors of state that callbacks need synchronously (e.g. a share arriving mid-download).
@@ -63,9 +64,17 @@ export function useDownloader({ onSaved, onDone } = {}) {
     [setJob, setState],
   );
 
+  // `known`: the post's details from a recently read card (knownPost.js), so its
+  // media downloads without loading the page again.
   const run = useCallback(
-    (post, fromShare) => {
+    (post, fromShare, known = null) => {
       last.current = { url: post.url, fromShare };
+      if (known) {
+        const p = { ...known, known: true };
+        if (p.media.length > 1) setState({ phase: 'choosing', post: p });
+        else saveRef.current(p, p.media);
+        return;
+      }
       setJob({ ...post, nonce: Date.now() });
       setState({ phase: 'loading' });
     },
@@ -78,14 +87,14 @@ export function useDownloader({ onSaved, onDone } = {}) {
     const [next, ...rest] = queueRef.current;
     if (!next) return;
     setQueue(rest);
-    run(parseThreadsUrl(next.url), next.fromShare);
+    run(parseThreadsUrl(next.url), next.fromShare, next.known);
   }, [run, setQueue]);
 
   // `fromShare`: the request came from the share menu, so the app can send the
   // user straight back to Threads once everything is done.
   // Returns 'started', 'queued', 'duplicate' (already running or waiting), or 'invalid'.
   const start = useCallback(
-    (text, { fromShare = false } = {}) => {
+    (text, { fromShare = false, known = null } = {}) => {
       const post = parseThreadsUrl(text);
       const busy = !!jobRef.current || ['loading', 'choosing', 'saving'].includes(phaseRef.current);
       if (!post) {
@@ -96,12 +105,12 @@ export function useDownloader({ onSaved, onDone } = {}) {
         return 'invalid';
       }
       if (busy) {
-        const next = enqueue(queueRef.current, { url: post.url, fromShare }, last.current?.url);
+        const next = enqueue(queueRef.current, { url: post.url, fromShare, known }, last.current?.url);
         if (next === queueRef.current) return 'duplicate';
         setQueue(next);
         return 'queued';
       }
-      run(post, fromShare);
+      run(post, fromShare, known);
       return 'started';
     },
     [fail, run, setQueue],
@@ -142,11 +151,20 @@ export function useDownloader({ onSaved, onDone } = {}) {
         advance();
         if (phaseRef.current === 'done') doneCallback.current?.(result);
       } catch (e) {
+        // The card's media links may have expired: read the page for fresh ones.
+        if (post.known && !e.permission) {
+          run(parseThreadsUrl(post.url), fromShare);
+          return;
+        }
         fail({ phase: 'error', title: '下載失敗', message: e.message, action: { kind: 'retry', label: '再試一次' } });
       }
     },
-    [advance, fail, setState],
+    [advance, fail, run, setState],
   );
+
+  useEffect(() => {
+    saveRef.current = save;
+  }, [save]);
 
   // Carousel picker results: indexes into state.post.media.
   const choose = useCallback(
@@ -173,13 +191,15 @@ export function useDownloader({ onSaved, onDone } = {}) {
     return () => clearTimeout(timer);
   }, [job, fail]);
 
-  const onLoadEnd = () => {
-    if (job) webRef.current?.injectJavaScript(collectScript(job.id, job.code));
+  // Injected while the page loads too, so the post is read as soon as its HTML
+  // is parsed (see injected.js); `nonce` keeps it to one reply per page.
+  const inject = () => {
+    if (job) webRef.current?.injectJavaScript(collectScript(job.id, job.code, String(job.nonce), job.nonce));
   };
 
   const onMessage = (event) => {
     const data = JSON.parse(event.nativeEvent.data);
-    if (!job || data.id !== job.id) return;
+    if (!job || data.id !== job.id || data.nonce !== String(job.nonce)) return;
     setJob(null);
 
     const found = data.code ? extractPost(data.json, data.code, data.videos) : null;
@@ -206,7 +226,8 @@ export function useDownloader({ onSaved, onDone } = {}) {
   const webViewProps = job && {
     ref: webRef,
     source: { uri: job.url },
-    onLoadEnd,
+    onLoadProgress: inject,
+    onLoadEnd: inject,
     onMessage,
     onError: () =>
       fail({ phase: 'error', title: '無法開啟貼文', message: '請檢查網路連線。', action: { kind: 'retry', label: '再試一次' } }),

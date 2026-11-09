@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { leaveToThreads, systemToast } from './appExit';
 import { summary } from './historyModel';
+import { knownPost } from './knownPost';
 import { useDownloader } from './useDownloader';
 
 // Downloads of saved cards, on top of useDownloader. A card's media is only known
@@ -31,7 +32,7 @@ export function useDownloads({ c, notify, onLogin }) {
 
   const request = (id, fromShare = false) => {
     const post = c.posts.find((p) => p.id === c.resolveId(id));
-    if (post?.status === 'ready' && post.code) dl.start(post.url, { fromShare });
+    if (post?.status === 'ready' && post.code) dl.start(post.url, { fromShare, known: knownPost(post) });
     else pending.current.set(c.resolveId(id), { fromShare });
   };
 
@@ -40,7 +41,7 @@ export function useDownloads({ c, notify, onLogin }) {
       const post = c.posts.find((p) => p.id === c.resolveId(id));
       if (post?.status === 'ready' && post.code) {
         pending.current.delete(id);
-        dl.start(post.url, opts);
+        dl.start(post.url, { ...opts, known: knownPost(post) });
       } else if (!post || post.status === 'failed') {
         pending.current.delete(id);
         notify({ message: '貼文讀取失敗，無法下載' });

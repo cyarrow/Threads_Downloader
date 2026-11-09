@@ -151,7 +151,7 @@ unless marked. The 批次選取 rows come from `--select-only` runs.
 
 What changed, in order of effect:
 
-1. **Hidden panes keep their size on web** (`Pane` in `App.js`). Web used to
+1. **Hidden panes keep their size on web** (`ui/Pane.js`). Web used to
    hide a pane with `display: none`. In a pane hidden that way, FlashList
    measures every card as 0 px tall and mounts the whole list, which is every
    PostCard plus every StreamPost. After that, any render of the hidden list

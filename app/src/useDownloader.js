@@ -19,13 +19,16 @@ const needsLogin = {
 // Requests that arrive while one is in progress wait in a queue and run in order.
 // `state.phase` is one of idle | loading | choosing | saving | done | error.
 // `onSaved(entry)` receives a history entry after every successful save.
-export function useDownloader({ onSaved } = {}) {
+// `onDone(result)` gets the 'done' state once a save leaves nothing else to run
+// (when a queued request starts right away, its result is never shown).
+export function useDownloader({ onSaved, onDone } = {}) {
   const [state, setStateRaw] = useState({ phase: 'idle' });
   const [job, setJobRaw] = useState(null); // { id, code, url, nonce } while a post is loading
   const [queued, setQueued] = useState(0);
   const webRef = useRef(null);
   const last = useRef(null); // { url, fromShare } of the current/latest request, for retry
   const savedCallback = useRef(onSaved);
+  const doneCallback = useRef(onDone);
   // Mirrors of state that callbacks need synchronously (e.g. a share arriving mid-download).
   const phaseRef = useRef('idle');
   const jobRef = useRef(null);
@@ -33,7 +36,8 @@ export function useDownloader({ onSaved } = {}) {
 
   useEffect(() => {
     savedCallback.current = onSaved;
-  }, [onSaved]);
+    doneCallback.current = onDone;
+  }, [onSaved, onDone]);
 
   const setState = useCallback((next) => {
     phaseRef.current = next.phase;
@@ -123,7 +127,8 @@ export function useDownloader({ onSaved } = {}) {
         );
         const videos = media.filter((m) => m.type === 'video').length;
         const counts = { videos, images: media.length - videos };
-        setState({ phase: 'done', ...counts, author: post.author, fromShare });
+        const result = { phase: 'done', ...counts, author: post.author, fromShare };
+        setState(result);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
         savedCallback.current?.({
@@ -135,6 +140,7 @@ export function useDownloader({ onSaved } = {}) {
           savedAt: Date.now(),
         });
         advance();
+        if (phaseRef.current === 'done') doneCallback.current?.(result);
       } catch (e) {
         fail({ phase: 'error', title: '下載失敗', message: e.message, action: { kind: 'retry', label: '再試一次' } });
       }

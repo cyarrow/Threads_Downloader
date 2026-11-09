@@ -1,5 +1,6 @@
 // Pure helpers for resurfacing old saves: 「N 年前的今天」, then 「好久沒看」,
-// plus a day-stable shuffle for 「隨機翻翻」. Dates use the device's local time.
+// plus the seeded shuffle the 翻翻 deck orders its cards with. Dates use the
+// device's local time.
 
 const DAY = 24 * 3600 * 1000;
 
@@ -83,24 +84,4 @@ export function pickRediscover(posts, now, { max = 3, minDays = 30 } = {}) {
     subtitle: `${picks.length} 篇超過 ${minDays} 天沒打開`,
     posts: picks,
   };
-}
-
-// 「隨機翻翻」: `n` browsable posts, stable for the day; bump `round` for another batch.
-export function randomPicks(posts, now, n = 5, round = 0) {
-  return seededShuffle(posts.filter(isBrowsable), `${dayKey(now)}#${round}`).slice(0, n);
-}
-
-// Friendly age for a save: 今天 / 3 天前 / 2 個月前 / 一年前 / 3 年前.
-export function ageLabel(savedAt, now) {
-  const a = new Date(savedAt);
-  const b = new Date(now);
-  let months = (b.getFullYear() - a.getFullYear()) * 12 + (b.getMonth() - a.getMonth());
-  if (b.getDate() < a.getDate()) months -= 1;
-  if (months >= 12) {
-    const years = Math.floor(months / 12);
-    return years === 1 ? '一年前' : `${years} 年前`;
-  }
-  if (months >= 1) return `${months} 個月前`;
-  const days = Math.floor((now - savedAt) / DAY);
-  return days <= 0 ? '今天' : `${days} 天前`;
 }

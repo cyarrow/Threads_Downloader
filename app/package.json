@@ -34,8 +34,7 @@
     "web": "expo start --web",
     "test": "node --no-warnings --test test/*.test.mjs",
     "e2e": "node e2e/run.mjs --build",
-    "lint": "expo lint",
-    "prototype:web": "EXPO_PUBLIC_PROTOTYPE=1 expo export --platform web --output-dir dist-prototype"
+    "lint": "expo lint . --max-warnings 0"
   },
   "private": true,
   "devDependencies": {

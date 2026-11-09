@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { filterForTag, streamItemType, streamPosts } from '../src/collection/streamModel.js';
+import { streamItemType, streamPosts } from '../src/collection/streamModel.js';
 import { UNCATEGORIZED, indexTags } from '../src/collection/tagModel.js';
 
 const tags = [
@@ -44,12 +44,6 @@ test('item types keep layouts apart', () => {
   assert.equal(streamItemType(post('x', 1, { media: [{ type: 'image' }] })), 'photo');
   assert.equal(streamItemType(post('x', 1, { cover: 'file://c.jpg' })), 'cover');
   assert.equal(streamItemType(post('x', 1)), 'text');
-});
-
-test('tapping a tag filters by its 大標籤', () => {
-  assert.equal(filterForTag('fan-a', index.byId), 'fan');
-  assert.equal(filterForTag('food', index.byId), 'food');
-  assert.equal(filterForTag('missing', index.byId), null);
 });
 
 test('author: only that author, combined with the tag filter', () => {

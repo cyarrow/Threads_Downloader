@@ -62,7 +62,7 @@ src/threads.js 找出對應貼文 → 作者、內文、每個項目的最高畫
 cd app
 npm install
 npm test               # 單元測試
-npx expo lint
+npm run lint           # ESLint 檢查整個 app/（單打 npx expo lint 只會檢查 src/）
 npx expo run:android   # 或 run:ios；含原生模組，需要 development build，無法用 Expo Go
 ```
 

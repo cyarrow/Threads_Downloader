@@ -36,11 +36,3 @@ export function streamItemType(post) {
   if (post.media.length === 1) return post.media[0].type === 'video' ? 'video' : 'photo';
   return post.cover ? 'cover' : 'text';
 }
-
-// A tag chip under a post filters the feed by its 大標籤 (the broader family),
-// matching the preview: tapping 「追星 › 某團」 shows all of 追星.
-export function filterForTag(tagId, byId) {
-  const tag = byId[tagId];
-  if (!tag) return null;
-  return tag.parentId && byId[tag.parentId] ? tag.parentId : tag.id;
-}

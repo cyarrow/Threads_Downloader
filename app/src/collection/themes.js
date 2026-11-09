@@ -225,10 +225,6 @@ export function normalizeThemeId(id) {
   return THEMES[id] ? id : DEFAULT_THEME;
 }
 
-export function themeColors(id, scheme) {
-  return THEMES[normalizeThemeId(id)].colors[scheme === 'dark' ? 'dark' : 'light'];
-}
-
 // `a` over `b` at `alpha` (both #RRGGBB) → #rrggbb.
 export function mixHex(a, b, alpha) {
   const x = parseInt(a.slice(1), 16);

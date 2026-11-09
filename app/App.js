@@ -461,8 +461,8 @@ function Home({ listenNotices }) {
         rulesCount={c.rules.length}
         onExport={exportNow}
         onImport={importNow}
-        onCheckUpdate={update.checkNow}
-        updateStatus={update.status}
+        onCheckUpdate={update.settingsPress}
+        updateStatus={update.settingsStatus}
         version={update.version}
         stats={`${c.posts.length} 篇 · ${c.tags.length} 個標籤`}
         quickSave={c.quickSave}

@@ -11,6 +11,7 @@ export function parseRelease(rel) {
     name: rel.name || rel.tag_name,
     notes: (rel.body || '').trim(),
     apkUrl: apk.browser_download_url,
+    size: Number(apk.size) || 0,
     pageUrl: rel.html_url,
   };
 }

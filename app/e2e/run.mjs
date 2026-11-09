@@ -30,6 +30,7 @@ const SUITES = [
   { name: 'film-theme' },
   { name: 'video' },
   { name: 'fetch-health' },
+  { name: 'update' },
 ];
 const SCHEMES = ['light', 'dark'];
 

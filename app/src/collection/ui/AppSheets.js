@@ -17,6 +17,7 @@ import * as Clipboard from 'expo-clipboard';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import { isLoggedInUrl } from '../../threads';
+import { progressFraction, progressLabel } from '../../updateInstall';
 import { imageSource } from '../media';
 import { TOUCH, elevation, icon, radius, space, useCollectionTheme } from '../tokens';
 import { IconButton, PrimaryButton, SecondaryButton, Sheet, useKeyboardOverlap } from './base';
@@ -227,22 +228,78 @@ export function DownloadPill({ state, queued, onAction, onSkip }) {
   );
 }
 
-export function UpdateBanner({ release, onDownload, onDismiss }) {
+function BannerAction({ label, onPress }) {
   const t = useCollectionTheme();
-  if (!release) return null;
   return (
-    <View style={[styles.banner, { borderRadius: t.radius.md, backgroundColor: t.card, borderColor: t.border }]}>
-      <Ionicons name="arrow-up-circle" size={icon.lg} color={t.foreground} />
-      <View style={styles.flex}>
-        <Text style={[t.font.label, { color: t.foreground }]}>有新版本</Text>
-        <Text style={[t.font.meta, { color: t.mutedForeground }]} numberOfLines={1}>
-          {release.name}
-        </Text>
+    <Pressable onPress={onPress} accessibilityRole="button" style={styles.textButton}>
+      <Text style={[t.font.label, { color: t.accent }]}>{label}</Text>
+    </Pressable>
+  );
+}
+
+// 有新版本 on the wall. `u`: useAppUpdate. The update downloads inside the app
+// (progress bar), then Android's installer opens; coming back without updating
+// offers 安裝 again and the page that allows installs, and a failure says why,
+// with the browser download as a fallback.
+export function UpdateBanner({ u }) {
+  const t = useCollectionTheme();
+  const release = u.update;
+  if (!release) return null;
+  const { phase } = u.install;
+  const muted = { color: t.mutedForeground };
+  let title = '有新版本';
+  let detail = release.name;
+  let action = <BannerAction label="下載並安裝" onPress={u.start} />;
+  let extra = null;
+  if (phase === 'downloading') {
+    const { written, total } = u.install;
+    const fraction = progressFraction(written, total);
+    title = '下載更新中…';
+    detail = progressLabel(written, total);
+    action = <ActivityIndicator color={t.mutedForeground} style={styles.bannerSpinner} />;
+    extra = (
+      <View
+        style={[styles.progressTrack, { backgroundColor: t.muted }]}
+        accessibilityRole="progressbar"
+        accessibilityLabel="下載更新"
+        accessibilityValue={fraction == null ? undefined : { min: 0, max: 100, now: Math.round(fraction * 100) }}
+      >
+        <View style={[styles.progressFill, { backgroundColor: t.foreground, width: `${Math.round((fraction ?? 0.05) * 100)}%` }]} />
       </View>
-      <Pressable onPress={onDownload} accessibilityRole="button" style={styles.textButton}>
-        <Text style={[t.font.label, { color: t.accent }]}>下載更新</Text>
-      </Pressable>
-      <IconButton name="close" label="稍後再說" color={t.mutedForeground} size={icon.md} onPress={onDismiss} />
+    );
+  } else if (phase === 'ready') {
+    title = '下載好了';
+    detail = '沒看到安裝畫面，或被擋下了？先允許安裝再按「安裝」';
+    action = <BannerAction label="安裝" onPress={u.start} />;
+    extra = (
+      <View style={styles.bannerActions}>
+        <BannerAction label="允許安裝" onPress={u.allowInstalls} />
+      </View>
+    );
+  } else if (phase === 'failed') {
+    title = '更新失敗';
+    detail = u.install.message;
+    action = <BannerAction label="重試" onPress={u.start} />;
+    extra = (
+      <View style={styles.bannerActions}>
+        <BannerAction label="改用瀏覽器下載" onPress={u.openInBrowser} />
+      </View>
+    );
+  }
+  return (
+    <View style={[styles.bannerBox, { borderRadius: t.radius.md, backgroundColor: t.card, borderColor: t.border }]}>
+      <View style={styles.banner}>
+        <Ionicons name={phase === 'failed' ? 'alert-circle' : 'arrow-up-circle'} size={icon.lg} color={phase === 'failed' ? t.danger : t.foreground} />
+        <View style={styles.flex} accessibilityLiveRegion="polite">
+          <Text style={[t.font.label, { color: t.foreground }]}>{title}</Text>
+          <Text style={[t.font.meta, muted]} numberOfLines={2}>
+            {detail}
+          </Text>
+        </View>
+        {action}
+        {phase !== 'downloading' && <IconButton name="close" label="稍後再說" color={t.mutedForeground} size={icon.md} onPress={u.dismiss} />}
+      </View>
+      {extra}
     </View>
   );
 }
@@ -259,7 +316,7 @@ function SettingsRow({ iconName, label, value, onPress }) {
       <Ionicons name={iconName} size={icon.lg} color={t.foreground} />
       <Text style={[t.font.body, { color: t.foreground, flex: 1 }]}>{label}</Text>
       {!!value && (
-        <Text style={[t.font.meta, { color: t.mutedForeground, flexShrink: 1, textAlign: 'right' }]}>{value}</Text>
+        <Text style={[t.font.meta, { color: t.mutedForeground, flexShrink: 1, maxWidth: '60%', textAlign: 'right' }]}>{value}</Text>
       )}
       {onPress && <Ionicons name="chevron-forward" size={icon.sm} color={t.mutedForeground} />}
     </Pressable>
@@ -327,13 +384,12 @@ const styles = StyleSheet.create({
     paddingLeft: space.lg,
   },
   pillMain: { flex: 1, minHeight: TOUCH, flexDirection: 'row', alignItems: 'center', gap: space.sm },
-  banner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.sm,
-    borderWidth: 1,
-    paddingLeft: space.md,
-  },
+  bannerBox: { borderWidth: 1, paddingLeft: space.md, paddingVertical: space.xs },
+  banner: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  bannerSpinner: { width: TOUCH, height: TOUCH },
+  bannerActions: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: -space.sm },
+  progressTrack: { height: 4, borderRadius: 2, overflow: 'hidden', marginRight: space.md, marginBottom: space.md },
+  progressFill: { height: 4, borderRadius: 2 },
   settings: { paddingBottom: space.md },
   settingsRow: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: space.lg, paddingHorizontal: space.sm, },
 });

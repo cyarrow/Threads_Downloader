@@ -9,7 +9,7 @@ const release = {
   html_url: 'https://github.com/o/r/releases/tag/build-42',
   assets: [
     { name: 'notes.txt', browser_download_url: 'https://x/notes.txt' },
-    { name: 'threads-downloader-1.1.0-42.apk', browser_download_url: 'https://x/app.apk' },
+    { name: 'threads-downloader-1.1.0-42.apk', browser_download_url: 'https://x/app.apk', size: 49480569 },
   ],
 };
 
@@ -21,6 +21,7 @@ test('parseRelease reads the build number and APK asset', () => {
     name: 'Threads 下載 1.1.0 (build 42)',
     notes: 'Fix things',
     apkUrl: 'https://x/app.apk',
+    size: 49480569,
     pageUrl: 'https://github.com/o/r/releases/tag/build-42',
   });
 });

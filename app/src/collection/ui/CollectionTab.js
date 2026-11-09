@@ -1,4 +1,4 @@
-import { Linking, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { SecondaryButton } from './base';
 import { UpdateBanner } from './AppSheets';
 import { AuthorBar } from './AuthorPage';
@@ -47,7 +47,7 @@ export function CollectionTab({ w, sel, c, index, update, on }) {
             <View style={styles.banners}>
               <FetchHealth posts={c.posts} onRetryAll={c.retryAllFailed} onLogin={on.login} />
               <BackupNote onSetup={on.settings} />
-              <UpdateBanner release={update.update} onDownload={() => Linking.openURL(update.update.apkUrl)} onDismiss={update.dismiss} />
+              <UpdateBanner u={update} />
               <RediscoverCard pick={w.rediscover} onOpen={on.open} onShuffle={on.shuffle} onDismiss={w.hideRediscover} />
               {w.untagged > 0 && !w.filter.length && (
                 <View style={styles.triageEntry}>

@@ -27,6 +27,9 @@ jobs:
     env:
       BUILD_NUMBER: ${{ github.run_number }}
       CI: '1'
+      # SHA-256 of the private release key's certificate (public information).
+      # Releases must be signed with it; see "Check release signature".
+      RELEASE_CERT_SHA256: 6d62860889c9f21019c86bd53115dddbf21a4d3aa76b29e40d30c3e95b3d1eeb
     steps:
       - uses: actions/checkout@v4
 
@@ -52,17 +55,23 @@ jobs:
       - name: Generate Android project
         run: npx expo prebuild --platform android --no-install
 
-      # With the four ANDROID_* secrets set, release builds use your own key.
-      # Without them they keep the Expo template's debug key, which is what the
-      # APKs installed so far are signed with, so updates install over them.
+      # Releases (pushes to main) are signed with the private key in the four
+      # ANDROID_* secrets, and fail without them: the Expo template's debug key
+      # is public, so anyone could sign an "update" with it. Other builds (branches,
+      # pull requests, which get no secrets) fall back to that debug key; their
+      # APKs are test artifacts and can't install over the released app.
       - name: Choose signing key
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          IS_RELEASE: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
         run: |
           if [ -n "$KEYSTORE_BASE64" ]; then
             echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
             echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
             echo "Signing with the release keystore from secrets."
+          elif [ "$IS_RELEASE" = "true" ]; then
+            echo "::error::No release keystore secrets (ANDROID_KEYSTORE_BASE64 …); refusing to publish a release signed with the public debug key."
+            exit 1
           else
             echo "221e0a3106aa4c3ccc154e0a418b55020b3f9ea6e84f92e8749cd9e2f39f5e58  android/app/debug.keystore" | sha256sum -c - \
               || { echo "::error::Template debug keystore changed; this APK would not install over existing ones."; exit 1; }
@@ -90,6 +99,19 @@ jobs:
         with:
           name: ${{ steps.apk.outputs.name }}
           path: app/${{ steps.apk.outputs.name }}
+
+      # A release must be signed with the private key, never the debug one:
+      # compare the APK's signer with RELEASE_CERT_SHA256 before publishing.
+      - name: Check release signature
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          APKSIGNER=$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)apksigner
+          SIGNER=$("$APKSIGNER" verify --print-certs "${{ steps.apk.outputs.name }}" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p')
+          echo "Signer SHA-256: $SIGNER"
+          if [ "$SIGNER" != "$RELEASE_CERT_SHA256" ]; then
+            echo "::error::Release APK is not signed with the release key (expected $RELEASE_CERT_SHA256)."
+            exit 1
+          fi
 
       - name: Publish release
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'

@@ -1,7 +1,8 @@
-// Signs release builds with a private keystore when CI provides one through
+// Signs release builds with the private keystore CI provides through
 // ANDROID_KEYSTORE_PATH / ANDROID_KEYSTORE_PASSWORD / ANDROID_KEY_ALIAS /
-// ANDROID_KEY_PASSWORD; otherwise keeps the template's debug signing so builds
-// stay installable over earlier APKs.
+// ANDROID_KEY_PASSWORD. Without them (local and branch builds) it keeps the
+// template's debug signing; CI refuses to publish such a build as a release
+// (.github/workflows/android.yml).
 const { withAppBuildGradle } = require('expo/config-plugins');
 
 const RELEASE_SIGNING = `

@@ -5,9 +5,29 @@
 // (自動標籤規則, pointing at the file's tag ids). Version 1 files still import.
 import { normalizeNote } from './noteModel.js';
 import { RULE_KINDS, normalizeRuleValue } from './tagRules.js';
+import { parseThreadsUrl } from '../threads.js';
 
 export const BACKUP_APP = 'threads-downloader';
 export const BACKUP_VERSION = 2;
+
+const SHORTCODE = /^[A-Za-z0-9_-]{1,64}$/;
+const web = (u) => (typeof u === 'string' && /^https:\/\//.test(u) ? u : undefined);
+const num = (n) => (typeof n === 'number' && Number.isFinite(n) ? n : undefined);
+
+// A media item from a backup, keeping only https links and plain numbers.
+function cleanMedia(m) {
+  const url = web(m?.url);
+  if (!url) return null;
+  return {
+    type: m.type === 'video' ? 'video' : 'image',
+    url,
+    width: num(m.width),
+    height: num(m.height),
+    thumb: web(m.thumb),
+    poster: web(m.poster),
+    ratio: num(m.ratio) ?? null,
+  };
+}
 
 export function makeBackup(posts, tags, rules = [], now = Date.now()) {
   return {
@@ -101,7 +121,14 @@ export function planImport(backup, existing, newId) {
   const notesToFill = [];
   let skipped = 0;
   for (const p of backup.posts) {
-    if (!p.code || have.has(p.code)) {
+    // A backup is a file from anywhere: keep only real Threads links and shortcodes,
+    // so 在 Threads 開啟 can't be pointed at another app or site.
+    const link = typeof p.url === 'string' ? parseThreadsUrl(p.url) : null;
+    if (!link || typeof p.code !== 'string' || !SHORTCODE.test(p.code)) {
+      skipped += 1;
+      continue;
+    }
+    if (have.has(p.code)) {
       skipped += 1;
       const saved = p.code && existing.posts.find((x) => x.code === p.code);
       const note = normalizeNote(p.note);
@@ -112,10 +139,10 @@ export function planImport(backup, existing, newId) {
     postsToInsert.push({
       id: newId('p'),
       code: p.code,
-      url: p.url,
-      author: p.author || '',
-      caption: p.caption || '',
-      media: Array.isArray(p.media) ? p.media : [],
+      url: link.url,
+      author: typeof p.author === 'string' ? p.author : '',
+      caption: typeof p.caption === 'string' ? p.caption : '',
+      media: Array.isArray(p.media) ? p.media.map(cleanMedia).filter(Boolean) : [],
       cover: null,
       status: 'ready',
       featured: !!p.featured,

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as Haptics from 'expo-haptics';
-import { extractPost, parseThreadsUrl } from './threads';
+import { extractPost, isThreadsPage, parseThreadsUrl } from './threads';
 import { collectScript } from './injected';
 import { saveAll } from './download';
 import { canAdvance, enqueue } from './queueModel';
@@ -198,8 +198,15 @@ export function useDownloader({ onSaved, onDone } = {}) {
   };
 
   const onMessage = (event) => {
-    const data = JSON.parse(event.nativeEvent.data);
+    let data;
+    try {
+      data = JSON.parse(event.nativeEvent.data);
+    } catch {
+      return;
+    }
     if (!job || data.id !== job.id || data.nonce !== String(job.nonce)) return;
+    // Only a Threads page's content is trusted (a redirect may land elsewhere).
+    if (!isThreadsPage(event.nativeEvent.url)) data = { ...data, json: [], videos: [] };
     setJob(null);
 
     const found = data.code ? extractPost(data.json, data.code, data.videos) : null;

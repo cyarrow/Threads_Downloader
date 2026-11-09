@@ -166,9 +166,13 @@ function Home({ listenNotices }) {
       case 'download':
         requestDownload(post.id);
         break;
-      case 'open':
-        Linking.openURL(post.url).catch(() => setToast({ message: '無法開啟 Threads' }));
+      case 'open': {
+        // Only ever a Threads link (a card's url could come from an imported file).
+        const link = parseThreadsUrl(post.url);
+        if (link) Linking.openURL(link.url).catch(() => setToast({ message: '無法開啟 Threads' }));
+        else setToast({ message: '這張卡片沒有 Threads 連結' });
         break;
+      }
       case 'more':
         setMenuSelectable(false);
         setMenuPost(post);

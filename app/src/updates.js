@@ -4,7 +4,11 @@
 export function parseRelease(rel) {
   if (!rel || rel.draft || rel.prerelease) return null;
   const m = String(rel.tag_name || '').match(/^build-(\d+)$/);
-  const apk = (rel.assets || []).find((a) => /\.apk$/i.test(a.name || ''));
+  // Only an APK attached to a GitHub release is offered (the app downloads and
+  // installs it; Android then checks it is signed with the installed app's key).
+  const apk = (rel.assets || []).find(
+    (a) => /\.apk$/i.test(a.name || '') && /^https:\/\/github\.com\/[^/]+\/[^/]+\/releases\/download\//.test(a.browser_download_url || ''),
+  );
   if (!m || !apk) return null;
   return {
     build: Number(m[1]),

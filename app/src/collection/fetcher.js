@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { collectScript } from '../injected';
-import { extractPost, parseThreadsUrl } from '../threads';
+import { extractPost, isThreadsPage, parseThreadsUrl } from '../threads';
 import { FetchError } from './fetchError';
 import { createHealthTracker } from './fetchHealth';
 import { createSpeedTracker } from './fetchSpeed';
@@ -98,6 +98,8 @@ export function usePostFetcher() {
       return;
     }
     if (!j || data.id !== j.post.id || data.nonce !== String(j.nonce)) return;
+    // Only a Threads page's content is trusted (a redirect may land elsewhere).
+    if (!isThreadsPage(event.nativeEvent.url)) data = { ...data, json: [], videos: [] };
     const found = data.code ? extractPost(data.json, data.code, data.videos) : null;
     if (!found || (!found.found && !found.media.length)) {
       // structural: the page had JSON about this post but we couldn't read the post out of it.

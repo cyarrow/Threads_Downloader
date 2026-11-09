@@ -20,6 +20,13 @@ export function parseThreadsUrl(text) {
   return { id, code: id, url: `https://www.threads.com/t/${id}` };
 }
 
+// True for a page on Threads itself. The hidden WebViews only accept what the
+// injected collector reports from such a page: if a load ends up anywhere else
+// (a login or consent page on another site), its content is not trusted.
+export function isThreadsPage(url) {
+  return typeof url === 'string' && /^https:\/\/(?:www\.)?threads\.(?:com|net)(?=[/?#]|$)/i.test(url);
+}
+
 // True once the login flow (threads /login, Instagram auth pages) has landed on a
 // regular threads.com page, i.e. the session is logged in.
 export function isLoggedInUrl(url) {
@@ -132,6 +139,8 @@ export function extractPost(jsonTexts, code, domVideoUrls = []) {
 }
 
 export function fileName(code, index, media) {
+  // Shortcodes are [A-Za-z0-9_-]; anything else (a damaged backup) must not reach a file path.
+  const safe = String(code).replace(/[^A-Za-z0-9_-]/g, '_');
   const ext = media.type === 'video' ? 'mp4' : /\.webp(\?|$)/.test(media.url) ? 'webp' : 'jpg';
-  return `threads_${code}_${index + 1}.${ext}`;
+  return `threads_${safe}_${index + 1}.${ext}`;
 }

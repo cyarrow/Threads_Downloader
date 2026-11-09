@@ -10,8 +10,8 @@ const tags = [
   { id: 'b', name: '某團', parentId: 'a', color: 'rose', createdAt: 2 },
 ];
 const posts = [
-  { id: 'p1', code: 'C1', url: 'u1', author: 'x', caption: 'hi', media: [{ type: 'image', url: 'm', poster: 'm', ratio: 1 }], cover: 'file:///c.jpg', featured: true, downloaded: false, savedAt: 5, tagIds: ['b'] },
-  { id: 'p2', code: null, url: 'u2', status: 'loading', media: [], tagIds: [] },
+  { id: 'p1', code: 'C1', url: 'https://www.threads.com/@x/post/C1', author: 'x', caption: 'hi', media: [{ type: 'image', url: 'https://cdn/m.jpg', poster: 'https://cdn/m.jpg', ratio: 1 }], cover: 'file:///c.jpg', featured: true, downloaded: false, savedAt: 5, tagIds: ['b'] },
+  { id: 'p2', code: null, url: 'https://www.threads.com/share/S2/', status: 'loading', media: [], tagIds: [] },
 ];
 
 test('makeBackup drops local cover paths and unfinished placeholders', () => {
@@ -92,7 +92,7 @@ test('version 1 backups (no notes, no rules) still import', () => {
     version: 1,
     exportedAt: 1,
     tags: [{ id: 'a', name: '追星', parentId: null, color: 'rose', createdAt: 1 }],
-    posts: [{ code: 'OLD', url: 'u', author: 'x', caption: 'hi', media: [], featured: false, downloaded: true, savedAt: 2, tagIds: ['a'] }],
+    posts: [{ code: 'OLD', url: 'https://www.threads.com/@x/post/OLD', author: 'x', caption: 'hi', media: [], featured: false, downloaded: true, savedAt: 2, tagIds: ['a'] }],
   };
   const plan = planImport(parseBackup(JSON.stringify(v1)), { tags: [], posts: [] }, newId);
   assert.equal(plan.postsToInsert.length, 1);

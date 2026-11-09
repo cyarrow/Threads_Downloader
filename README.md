@@ -68,7 +68,7 @@ npx expo run:android   # 或 run:ios；含原生模組，需要 development buil
 
 ### 簽章
 
-正式版（推到 main 發布的 APK）用私人金鑰簽署，金鑰存在 repo 的 Settings → Secrets and variables → Actions：`ANDROID_KEYSTORE_BASE64`、`ANDROID_KEYSTORE_PASSWORD`、`ANDROID_KEY_ALIAS`、`ANDROID_KEY_PASSWORD`。少了它們，main 的打包會直接失敗，不會發布；發布前也會比對 APK 的簽章指紋（工作流程裡的 `RELEASE_CERT_SHA256`）。早期版本用的是 Expo 範本公開的 debug 金鑰，從那些版本換到正式金鑰需要先匯出備份、解除安裝一次。其他分支的測試 APK 仍用 debug 金鑰，不能覆蓋正式版。
+目前的 APK 用 Expo 範本附的 debug 金鑰簽署，所以新版可以直接覆蓋安裝；工作流程會檢查這把金鑰沒有變。若想改用自己的金鑰，在 repo 的 Settings → Secrets and variables → Actions 新增 `ANDROID_KEYSTORE_BASE64`、`ANDROID_KEYSTORE_PASSWORD`、`ANDROID_KEY_ALIAS`、`ANDROID_KEY_PASSWORD`。換金鑰後需要先解除安裝舊版一次。
 
 ## 注意
 

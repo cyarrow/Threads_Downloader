@@ -34,7 +34,7 @@ const ROW_GAP = 20; // between cards in a column
 // wall into selection mode — 「已選 N 篇」 header, tap toggles a card, and the
 // action bar under the list (so the list ends above it, never under it).
 export function CardWall({
-  posts, total, index, filter, onFilter, query, onQuery, onOpen, onMenu, onRetry, onAdd, onSettings, banner,
+  posts, total, index, filter, onFilter, query, onQuery, onOpen, onMenu, onRetry, onStale, onAdd, onSettings, banner,
   onRefresh, refreshing, overlay, searching: searchingProp, onSearching, title = '收藏', onBack, backLabel = '返回所有標籤',
   kicker, filterBar, onAllTags, compactTitle, onSelect, selection, emptyText,
 }) {
@@ -154,6 +154,7 @@ export function CardWall({
               onOpen={onOpen}
               onMenu={onMenu}
               onRetry={onRetry}
+              onStale={onStale}
               wide={columns >= 3}
               maxMediaHeight={Math.round(height * 0.55)}
             />

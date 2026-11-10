@@ -9,9 +9,16 @@ export async function saveCover(code, url) {
   try {
     const dir = coverDir();
     if (!dir.exists) dir.create();
-    const target = new File(dir, `${code}.jpg`);
+    // Download next to the cover and swap it in afterwards: a failed download
+    // must leave the cover the card already has.
+    const name = `${code}.jpg`;
+    const part = new File(dir, `${code}.part`);
+    if (part.exists) part.delete();
+    const fresh = await File.downloadFileAsync(url, part);
+    const target = new File(dir, name);
     if (target.exists) target.delete();
-    return (await File.downloadFileAsync(url, target)).uri;
+    fresh.rename(name);
+    return new File(dir, name).uri;
   } catch {
     return null;
   }

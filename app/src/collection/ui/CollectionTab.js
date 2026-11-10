@@ -25,6 +25,7 @@ export function CollectionTab({ w, sel, c, index, update, on }) {
     onOpen: on.open,
     onMenu: on.menu,
     onRetry: on.retry,
+    onStale: on.stale,
   };
   return (
     <>

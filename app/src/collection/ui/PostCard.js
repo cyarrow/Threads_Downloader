@@ -88,7 +88,10 @@ function Meta({ post, kind }) {
 // `onOpen(post)` / `onMenu(post)` / `onRetry(post)`: tap, long press, 重試. They
 // take the post so the wall can pass the same functions to every card and memo
 // skips cards whose post didn't change.
-function PostCardImpl({ post, index, onOpen, onMenu, onRetry, wide, maxMediaHeight }) {
+// Posts already asked to be read again because their picture didn't load.
+const reported = new Set();
+
+function PostCardImpl({ post, index, onOpen, onMenu, onRetry, onStale, wide, maxMediaHeight }) {
   const t = useCollectionTheme();
   const tags = post.tagIds.map((id) => index.byId[id]).filter(Boolean);
   const hue = tags[0] ? tagHue(tags[0], index.byId) : 'slate';
@@ -163,6 +166,12 @@ function PostCardImpl({ post, index, onOpen, onMenu, onRetry, wide, maxMediaHeig
             style={[styles.media, { aspectRatio: 1 / ratio, maxHeight: maxMediaHeight, backgroundColor: t.muted }]}
             contentFit="cover"
             cachePolicy="memory-disk"
+            // The picture's link has expired (or its file is gone): read the post again.
+            onError={() => {
+              if (!onStale || reported.has(post.id)) return;
+              reported.add(post.id);
+              onStale(post);
+            }}
             accessible={false}
           />
         </Print>

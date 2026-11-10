@@ -203,3 +203,33 @@ describe('sqlite migration from schema 1', () => {
     assert.equal(await repo.getMeta('schema_version'), String(SCHEMA_VERSION));
   });
 });
+
+test('writes that start together run one after another (expo-sqlite transactions are not exclusive)', async () => {
+  const db = new DatabaseSync(':memory:');
+  const tick = () => new Promise((r) => setTimeout(r, 1)); // a native call takes a moment
+  const driver = {
+    execAsync: async (sql) => { await tick(); return db.exec(sql); },
+    runAsync: async (sql, p = []) => { await tick(); return db.prepare(sql).run(...p); },
+    getAllAsync: async (sql, p = []) => { await tick(); return db.prepare(sql).all(...p); },
+    getFirstAsync: async (sql, p = []) => { await tick(); return db.prepare(sql).get(...p) ?? null; },
+    // As in expo-sqlite's SQLiteDatabase.withTransactionAsync.
+    async withTransactionAsync(task) {
+      try { await this.execAsync('BEGIN'); await task(); await this.execAsync('COMMIT'); }
+      catch (e) { try { await this.execAsync('ROLLBACK'); } catch {} throw e; }
+    },
+  };
+  const repo = createSqlRepo(driver);
+  await repo.init();
+  for (const id of ['t1', 't2']) await repo.insertTag({ id, name: id, parentId: null, color: 'rose', createdAt: 1 });
+  await Promise.all(['A', 'B', 'C'].map((id) => repo.insertPost({ id, code: id, url: 'u', savedAt: 1, tagIds: [] })));
+  await Promise.all([repo.setPostTags('A', ['t1']), repo.setPostTags('B', ['t2']), repo.updatePost('C', { note: 'n' }), repo.setPostTags('C', ['t1', 't2'])]);
+  const posts = Object.fromEntries((await repo.listPosts()).map((p) => [p.id, p]));
+  assert.deepEqual(posts.A.tagIds, ['t1']);
+  assert.deepEqual(posts.B.tagIds, ['t2']);
+  assert.deepEqual(posts.C.tagIds.sort(), ['t1', 't2']);
+  assert.equal(posts.C.note, 'n');
+  // A failing write doesn't block the ones after it.
+  await assert.rejects(repo.insertPost({ id: 'A', code: 'Z', url: 'u', savedAt: 1 }));
+  await repo.setPostTags('A', ['t2']);
+  assert.deepEqual((await repo.findByCode('A')).tagIds, ['t2']);
+});

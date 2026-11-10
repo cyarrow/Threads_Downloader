@@ -307,6 +307,7 @@ function Home({ listenNotices }) {
     open: openPost,
     menu: openMenu,
     retry: retryPost,
+    stale: refreshPost,
     add,
     settings: openSettings,
     login: () => setLoginOpen(true),

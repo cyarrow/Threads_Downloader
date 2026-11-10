@@ -32,6 +32,8 @@ const sameTags = (a, b) => a.length === b.length && a.every((id) => b.includes(i
 const BACKGROUND_REFRESH_MAX = 30;
 // Keep a deleted card's cover file around this long so 復原 can bring it back.
 const UNDO_MS = 8000;
+// Covers downloaded at once after importing a backup.
+const COVER_DOWNLOADS = 4;
 
 // Owns the saved posts and tags: persists them (SQLite on device), fetches post
 // details through the hidden WebView, keeps covers on disk, and migrates the old
@@ -481,10 +483,39 @@ export function CollectionProvider({ children, onNotice }) {
     return JSON.stringify(makeBackup(postsRef.current, tagsRef.current, rulesRef.current), null, 1);
   }, [noteManualExport]);
 
+  // Covers for imported posts. The backup's image links usually still work (a
+  // backup made minutes ago for a reinstall; Threads' links last days), so each
+  // cover is downloaded straight from its link, a few at a time, with no Threads
+  // page to load. Such a post, and a text-only one, then counts as read as of the
+  // backup's date. Only posts whose link has expired are read from Threads, the
+  // first BACKGROUND_REFRESH_MAX now and the rest on later launches.
+  const restoreCovers = useCallback(
+    async (imported, exportedAt) => {
+      const readAt = typeof exportedAt === 'number' && exportedAt > 0 ? exportedAt : Date.now();
+      const queue = [...imported];
+      const expired = [];
+      const worker = async () => {
+        for (let p = queue.shift(); p; p = queue.shift()) {
+          const poster = p.media[0]?.poster || (p.media[0]?.type === 'image' ? p.media[0].url : null);
+          if (!p.media.length) await patch(p.id, { fetchedAt: readAt });
+          else {
+            const cover = poster ? await saveCover(p.code, poster) : null;
+            if (cover) await patch(p.id, { cover, fetchedAt: readAt });
+            else expired.push(p);
+          }
+        }
+      };
+      await Promise.all(Array.from({ length: COVER_DOWNLOADS }, worker));
+      expired.slice(0, BACKGROUND_REFRESH_MAX).forEach((p) => runFetch(p.id));
+    },
+    [patch, runFetch],
+  );
+
   // Returns { added, skipped }; throws with a readable message for bad files.
   const importBackup = useCallback(
     async (text) => {
-      const plan = planImport(parseBackup(text), { posts: postsRef.current, tags: tagsRef.current, rules: rulesRef.current }, newId);
+      const backup = parseBackup(text);
+      const plan = planImport(backup, { posts: postsRef.current, tags: tagsRef.current, rules: rulesRef.current }, newId);
       for (const tag of plan.tagsToCreate) await repo.current.insertTag(tag);
       for (const post of plan.postsToInsert) await repo.current.insertPost(post);
       for (const rule of plan.rulesToCreate) await repo.current.insertRule(rule);
@@ -495,11 +526,11 @@ export function CollectionProvider({ children, onNotice }) {
       setPosts((list) =>
         [...list.map((p) => (filled[p.id] ? { ...p, note: filled[p.id] } : p)), ...plan.postsToInsert].sort((a, b) => b.savedAt - a.savedAt),
       );
-      // Bring covers and fresh links back in the background.
-      plan.postsToInsert.slice(0, BACKGROUND_REFRESH_MAX).forEach((p) => runFetch(p.id));
+      // Bring covers back in the background (not awaited: the import is done).
+      restoreCovers(plan.postsToInsert, backup.exportedAt);
       return { added: plan.postsToInsert.length, skipped: plan.skipped };
     },
-    [runFetch, setPosts, setTags, setRules],
+    [restoreCovers, setPosts, setTags, setRules],
   );
 
   // --- 自動標籤規則: actions ------------------------------------------------------

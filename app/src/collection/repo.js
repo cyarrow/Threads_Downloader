@@ -113,7 +113,33 @@ const rowToTag = (row) => ({
 
 const rowToRule = (row) => ({ id: row.id, kind: row.kind, value: row.value, tagId: row.tag_id, createdAt: row.created_at });
 
+// Runs the wrapped calls one after another. expo-sqlite's withTransactionAsync
+// is not exclusive: two transactions started together fail with "cannot start a
+// transaction within a transaction", and the loser's ROLLBACK undoes the other
+// one's work too (e.g. tapping 完成 just as a post finishes loading).
+function serializer() {
+  let tail = Promise.resolve();
+  return (fn) => {
+    const run = tail.then(() => fn());
+    tail = run.catch(() => {});
+    return run;
+  };
+}
+
 export function createSqlRepo(db) {
+  return serializeWrites(createRawSqlRepo(db));
+}
+
+const SQL_WRITES = ['insertPost', 'updatePost', 'deletePost', 'setPostTags', 'insertTag', 'updateTag', 'deleteTag', 'mergeTag', 'insertRule', 'updateRule', 'deleteRule', 'setMeta'];
+
+function serializeWrites(repo) {
+  const serial = serializer();
+  const out = { ...repo };
+  for (const name of SQL_WRITES) out[name] = (...args) => serial(() => repo[name](...args));
+  return out;
+}
+
+function createRawSqlRepo(db) {
   const insertPost = async (post) => {
     const keys = Object.keys(POST_COLUMNS).filter((k) => post[k] !== undefined);
     await db.runAsync(

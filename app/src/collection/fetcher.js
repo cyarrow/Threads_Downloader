@@ -5,6 +5,7 @@ import { collectScript } from '../injected';
 import { extractPost, isThreadsPage, parseThreadsUrl } from '../threads';
 import { FetchError } from './fetchError';
 import { createHealthTracker } from './fetchHealth';
+import { PRIORITY, enqueue, requeueFront, shouldPreempt } from './fetchQueue';
 import { createSpeedTracker } from './fetchSpeed';
 
 export { FetchError };
@@ -38,7 +39,8 @@ export function usePostFetcher() {
   const pump = useCallback(() => {
     if (current.current) return;
     while (queue.current.length) {
-      const item = queue.current.shift();
+      const [item, ...rest] = queue.current;
+      queue.current = rest;
       const post = parseThreadsUrl(item.url);
       if (!post) {
         item.reject(health.record({ type: 'error', kind: 'invalid' }));
@@ -69,10 +71,21 @@ export function usePostFetcher() {
     [pump, speed],
   );
 
+  // `priority` (fetchQueue.js): a post the user is waiting for goes ahead of
+  // background refreshes, and interrupts one that is being read (it is read
+  // again afterwards; a late reply from its page is dropped by its nonce).
   const fetchPost = useCallback(
-    (url) =>
+    (url, { priority = PRIORITY.low } = {}) =>
       new Promise((resolve, reject) => {
-        queue.current.push({ url, resolve, reject });
+        const item = { url, resolve, reject, priority };
+        const running = current.current;
+        if (shouldPreempt(running, item)) {
+          const { url: u, resolve: res, reject: rej, priority: pr } = running;
+          queue.current = requeueFront(queue.current, { url: u, resolve: res, reject: rej, priority: pr });
+          current.current = null;
+          setJob(null);
+        }
+        queue.current = enqueue(queue.current, item);
         pump();
       }),
     [pump],

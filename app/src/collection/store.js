@@ -19,6 +19,7 @@ import { useAutoBackup } from './autoBackup';
 import { guardRepo } from './safeRepo';
 import { deleteCover, saveCover } from './covers';
 import { usePostFetcher } from './fetcher';
+import { PRIORITY } from './fetchQueue';
 import { openRepo } from './openRepo';
 import { DEFAULT_THEME, normalizeThemeId } from './themes';
 import { ThemeProvider } from './tokens';
@@ -113,13 +114,15 @@ export function CollectionProvider({ children, onNotice }) {
   // their identity and memoised screens don't re-render for nothing.
   const { fetchPost } = fetcher;
   const runFetch = useCallback(
-    async (id) => {
+    async (id, { resumed = false } = {}) => {
       const post = postsRef.current.find((p) => p.id === id);
       if (!post) return;
       const background = post.status === 'ready';
+      // What the user is waiting for is read first (fetchQueue.js).
+      const priority = background ? PRIORITY.low : resumed ? PRIORITY.normal : PRIORITY.high;
       const fresh = !background && !post.fetchedAt; // newly saved (or its first try failed)
       try {
-        const data = await fetchPost(post.url);
+        const data = await fetchPost(post.url, { priority });
         const fields = fetchedFields(data);
         const existing = postsRef.current.find((p) => p.code === data.code && p.id !== id);
         if (existing) {
@@ -219,7 +222,7 @@ export function CollectionProvider({ children, onNotice }) {
       const resume = p.filter(needsRefresh);
       const loading = resume.filter((x) => x.status === 'loading');
       const stale = resume.filter((x) => x.status !== 'loading').slice(0, BACKGROUND_REFRESH_MAX);
-      [...loading, ...stale].forEach((x) => runFetch(x.id));
+      [...loading, ...stale].forEach((x) => runFetch(x.id, { resumed: true }));
     })();
     return () => {
       alive = false;

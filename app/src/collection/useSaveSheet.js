@@ -6,6 +6,9 @@ import { tagLabel } from './tagModel';
 import { withRuleTags } from './tagRules';
 import { buzz } from './ui/base';
 
+// Longest a finished share waits for its post to be read before going back to Threads.
+const LEAVE_WAIT_MS = 5000;
+
 // The save / edit-tags sheet (ui/SaveSheet.js): which post it is for, the tags
 // picked so far, the 「加一句筆記…」 draft, and what happens when it closes.
 // `requestDownload(id, fromShare)`: queue a download (useDownloads). `notify(toast)`.
@@ -19,6 +22,21 @@ export function useSaveSheet({ c, index, notify, requestDownload }) {
   const [note, setNote] = useState('');
   const touched = useRef(new Set()); // tags toggled by hand in the open sheet
   const afterSheet = useRef(null); // the deck moving past a card once its tags are set
+  // A share that is done: go back to Threads once its post has been read. Leaving
+  // closes the app's screen and with it the hidden page reading the post, which
+  // then stayed 「讀取中」 until the next launch. `leaveWhenRead` holds the post id.
+  const leaveWhenRead = useRef(null);
+  const leaveNow = () => {
+    if (!leaveWhenRead.current) return;
+    leaveWhenRead.current = null;
+    leaveToThreads();
+  };
+  useEffect(() => {
+    const id = leaveWhenRead.current;
+    if (!id) return;
+    const p = c.posts.find((x) => x.id === c.resolveId(id));
+    if (!p || p.status !== 'loading') leaveNow();
+  });
 
   const post = sheet && c.posts.find((p) => p.id === c.resolveId(sheet.postId));
   const suggestions = useMemo(() => (post?.status === 'ready' ? suggestTags(post, c.posts, index) : []), [post, c.posts, index]);
@@ -90,7 +108,14 @@ export function useSaveSheet({ c, index, notify, requestDownload }) {
     }
     if (fromShare) {
       systemToast(message);
-      if (!willDownload) leaveToThreads();
+      if (!willDownload) {
+        const saved = c.posts.find((p) => p.id === id);
+        if (!saved || saved.status !== 'loading') leaveToThreads();
+        else {
+          leaveWhenRead.current = id;
+          setTimeout(leaveNow, LEAVE_WAIT_MS); // don't keep the user here for a slow page
+        }
+      }
     } else if (!quiet) {
       // The deck reports its own result in its status line, where the toast
       // would cover its buttons.

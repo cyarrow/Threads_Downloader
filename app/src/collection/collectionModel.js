@@ -37,10 +37,12 @@ export function pushRecent(recent, tagIds, max = RECENT_MAX) {
   return [...new Set([...tagIds, ...recent])].slice(0, max);
 }
 
-// A saved post whose details we never fetched (e.g. migrated from the old
-// download history) or whose fetch failed should be refreshed in the background.
+// A saved post whose details we never fetched (migrated from the old download
+// history, imported from a backup) or whose fetch never finished should be read
+// when the app starts. A post that has been read is left alone even when it has
+// no media: a text-only post would otherwise be read again on every launch.
 export function needsRefresh(post) {
-  return post.status === 'loading' || (post.status === 'ready' && (!post.media.length || !post.fetchedAt));
+  return post.status === 'loading' || (post.status === 'ready' && !post.fetchedAt);
 }
 
 // When a shared link turns out to be a post that's already saved, keep the

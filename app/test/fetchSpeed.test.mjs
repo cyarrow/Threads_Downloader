@@ -15,5 +15,5 @@ test('median of recent reads, keeping the last 20', () => {
   s.record(-1);
   s.record(NaN);
   assert.equal(s.summary().count, 20);
-  assert.equal(speedLabel({ count: 8, median: 2420 }), '約 2.4 秒（最近 8 篇）');
+  assert.equal(speedLabel({ count: 8, median: 2420 }), '約 2.4 秒（不含排隊，最近 8 篇）');
 });

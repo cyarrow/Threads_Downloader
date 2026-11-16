@@ -10,24 +10,23 @@ Expo ships breaking changes every SDK release. APIs you remember are likely rena
 
 ## Commands
 
+Project facts (these override the generic Expo guidance below): plain JavaScript, no TypeScript and no `tsc`; navigation is a custom tab bar in `App.js`, not Expo Router (share-intent deep links need a native test first); the tests are `npm test`, `npm run lint` and `npm run e2e`.
+
 Use `bunx` instead of `npx` if the project uses bun (`bun.lock` present).
 
 ```bash
 npx expo install <package>  # ALWAYS use instead of npm/yarn/pnpm/bun add — resolves SDK-compatible versions
 npx expo start              # start the dev server
 npm run lint                # lint (= expo lint . — bare `npx expo lint` only covers src/)
-npx tsc --noEmit            # typecheck
 npx expo-doctor             # diagnose dependency and config issues
 npx expo install --fix      # fix incompatible package versions
 ```
 
-Run lint and typecheck before declaring any task done.
+Run `npm test` and `npm run lint` before declaring any task done (and `npm run e2e` for UI changes).
 
 ## Navigation & Routing
 
-- Use **Expo Router** for all navigation. Routes live in `src/app/` — every file there is a screen, `_layout.tsx` files define navigators. Keep non-route code (components, hooks, utils) outside `src/app/`.
-- Import `Link`, `router`, and `useLocalSearchParams` from `expo-router`.
-- Docs: https://docs.expo.dev/router/introduction.md
+- This app does not use Expo Router; the three tabs and their pages are handled in `App.js` and `src/collection/navModel.js`. Do not add `src/app/` routes without moving the share-intent handling first.
 
 ## Building with EAS
 

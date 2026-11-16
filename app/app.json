@@ -18,8 +18,14 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "package": "com.cyarrow.threadsdownloader",
+      "allowBackup": false,
       "permissions": [
         "android.permission.REQUEST_INSTALL_PACKAGES"
+      ],
+      "blockedPermissions": [
+        "android.permission.READ_MEDIA_AUDIO",
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.DUMP"
       ]
     },
     "web": {
@@ -31,7 +37,8 @@
         {
           "photosPermission": "允許存取相簿以儲存下載的 Threads 媒體",
           "savePhotosPermission": "允許將下載的 Threads 媒體存到相簿",
-          "isAccessMediaLocationEnabled": false
+          "isAccessMediaLocationEnabled": false,
+          "granularPermissions": ["photo", "video"]
         }
       ],
       [

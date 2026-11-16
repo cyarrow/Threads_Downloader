@@ -9,3 +9,5 @@ export async function downloadApk() {
 export async function openInstaller() {}
 
 export async function openInstallPermission() {}
+
+export function clearOldUpdates() {}

@@ -26,5 +26,5 @@ export function createSpeedTracker() {
 // 「約 2.4 秒（最近 8 篇）」, or null before the first read.
 export function speedLabel(summary) {
   if (!summary) return null;
-  return `約 ${(summary.median / 1000).toFixed(1)} 秒（最近 ${summary.count} 篇）`;
+  return `約 ${(summary.median / 1000).toFixed(1)} 秒（不含排隊，最近 ${summary.count} 篇）`;
 }

@@ -27,6 +27,12 @@ function clearStale(keep) {
   }
 }
 
+// Deletes update files left in the cache (call at launch: a finished install has
+// replaced the app, an abandoned one is only taking space).
+export function clearOldUpdates() {
+  clearStale(null);
+}
+
 // Resolves to the checked File. Throws an InstallError whose `reason` is a key of
 // updateInstall.FAILURE_TEXT. `onProgress(written, total)`.
 export async function downloadApk(release, onProgress) {

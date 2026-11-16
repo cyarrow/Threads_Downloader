@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Linking } from 'react-native';
 import Constants from 'expo-constants';
 import { checkForUpdate } from './updates';
-import { downloadApk, installsInApp, openInstallPermission, openInstaller } from './apkInstaller';
+import { clearOldUpdates, downloadApk, installsInApp, openInstallPermission, openInstaller } from './apkInstaller';
 import { FAILURE_TEXT, progressChanged, progressLabel } from './updateInstall';
 
 // The newer APK on GitHub Releases, if any: checked at launch (the wall's
@@ -18,6 +18,10 @@ export function useAppUpdate() {
   const [install, setInstall] = useState({ phase: 'idle' });
   const busy = useRef(false);
   const file = useRef(null);
+
+  useEffect(() => {
+    clearOldUpdates();
+  }, []);
 
   useEffect(() => {
     if (releasesRepo && buildNumber) checkForUpdate(releasesRepo, buildNumber).then(setUpdate);

@@ -367,7 +367,10 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', marginVertical: space.xs },
   pickerScroll: { flexGrow: 0 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs, paddingBottom: space.md },
-  tile: { ...StyleSheet.absoluteFillObject, },
+  // Spelled out: React Native 0.88 dropped StyleSheet's absolute-fill object (only
+  // absoluteFill remains), and spreading the missing constant left these layers
+  // with no size on the phone: blank tiles with a flat line for the ring.
+  tile: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   dim: { opacity: 0.55 },
   ring: { borderWidth: 3 },
   tileBadge: { position: 'absolute', left: 6, bottom: 6, width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },

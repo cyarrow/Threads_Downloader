@@ -2,6 +2,7 @@
 // "downloads" are simulated — no WebView or photo library on the web.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { parseThreadsUrl } from './threads';
+import { SAMPLES } from './collection/fetcher.web';
 
 const STEP_MS = 400;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -37,7 +38,10 @@ export function useDownloader({ onSaved, onDone } = {}) {
     }
     let total = 1;
     if (code.startsWith('CAR')) {
-      const media = [0, 1, 2].map((i) => ({ type: 'image', thumb: null, poster: null, i }));
+      // CARMANY: a post with many items (the picker must scroll and keep its button).
+      const stills = SAMPLES.CAR.media;
+      const count = code.startsWith('CARMANY') ? 12 : 3;
+      const media = Array.from({ length: count }, (_, i) => ({ type: i % 4 === 3 ? 'video' : 'image', poster: stills[i % stills.length].poster, i }));
       total = await new Promise((resolve) => {
         choice.current = resolve;
         setState({ phase: 'choosing', post: { code, media } });

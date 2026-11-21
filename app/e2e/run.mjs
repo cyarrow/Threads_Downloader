@@ -32,6 +32,7 @@ const SUITES = [
   { name: 'fetch-health' },
   { name: 'update' },
   { name: 'collector' },
+  { name: 'picker' },
 ];
 const SCHEMES = ['light', 'dark'];
 

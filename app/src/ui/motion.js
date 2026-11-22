@@ -1,18 +1,16 @@
 import { useEffect, useState } from 'react';
 import { AccessibilityInfo } from 'react-native';
-import { Easing } from 'react-native-reanimated';
 
-// Motion tokens (Reanimated). The built-in curves are too weak for UI; these are
-// the strong ones every animation in the app uses.
-export const EASE_OUT = Easing.bezier(0.23, 1, 0.32, 1); // entering / exiting UI
-// The same curve for Reanimated CSS transitions (press feedback).
-export const EASE_OUT_CSS = 'cubic-bezier(0.23, 1, 0.32, 1)';
-
-// Springs in Apple's two designer parameters (duration in ms, damping ratio).
-export const SPRING_SETTLE = { duration: 400, dampingRatio: 0.8 }; // snap back after a drag
-export const SPRING_SHEET = { duration: 300, dampingRatio: 0.8 }; // sheet open / snap home
-
-export { project, rubberband } from './physics';
+// Apple describes springs by response (seconds) and damping ratio (1 = no overshoot).
+// React Native's Animated.spring wants stiffness/damping, so convert (mass = 1).
+export function spring(response = 0.35, dampingRatio = 1) {
+  return {
+    stiffness: (2 * Math.PI / response) ** 2,
+    damping: (4 * Math.PI * dampingRatio) / response,
+    mass: 1,
+    useNativeDriver: true,
+  };
+}
 
 export function useReduceMotion() {
   const [reduce, setReduce] = useState(false);

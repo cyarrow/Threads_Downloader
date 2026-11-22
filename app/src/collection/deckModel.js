@@ -13,13 +13,11 @@
 //   so the screen can put the post's 精選 / tags back the way they were.
 
 import { seededShuffle } from './rediscover.js';
-import { project } from '../ui/physics.js';
 
 export const UNDO_LIMIT = 50;
 export const ALL = '__all__';
 
 // How far the finger has to travel before a release counts as a swipe.
-
 export const SWIPE_X = 90;
 export const SWIPE_UP = 110;
 // Movement under this is a tap (opens the post), not a drag.
@@ -87,15 +85,10 @@ export function deckAction(direction, { triage, hasSuggestion }) {
 }
 
 // Where a released drag goes: 'right' | 'left' | 'up' | 'tap' | null (spring back).
-// The release velocity (points per second) counts: the card is judged by where
-// the flick was heading (physics.project), so a quick short flick commits and a
-// slow drag that was pulled back does not.
-export function releaseDirection(dx, dy, vx = 0, vy = 0) {
-  const x = dx + project(vx);
-  const y = dy + project(vy);
-  if (x > SWIPE_X) return 'right';
-  if (x < -SWIPE_X) return 'left';
-  if (y < -SWIPE_UP && Math.abs(dx) < 60) return 'up';
+export function releaseDirection(dx, dy) {
+  if (dx > SWIPE_X) return 'right';
+  if (dx < -SWIPE_X) return 'left';
+  if (dy < -SWIPE_UP && Math.abs(dx) < 60) return 'up';
   if (Math.abs(dx) < TAP_SLOP && Math.abs(dy) < TAP_SLOP) return 'tap';
   return null;
 }

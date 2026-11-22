@@ -122,11 +122,3 @@ test('hints and messages', () => {
   assert.equal(actionMessage('suggest', { tagName: '美食' }), '已加上「美食」');
   assert.equal(actionMessage('undo'), '已復原');
 });
-
-test('releaseDirection: a quick short flick commits, a pulled-back drag springs back', () => {
-  assert.equal(releaseDirection(30, 0, 600, 0), 'right'); // 30 pt + ~300 pt projected
-  assert.equal(releaseDirection(-30, 5, -600, 0), 'left');
-  assert.equal(releaseDirection(10, -40, 0, -900), 'up');
-  assert.equal(releaseDirection(120, 0, -150, 0), null); // dragged far, then pulled back toward the middle
-  assert.equal(releaseDirection(40, 0, 50, 0), null); // slow, short: springs back
-});

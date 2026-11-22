@@ -1,21 +1,8 @@
-import { memo, useCallback, useImperativeHandle, useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
-import Animated, {
-  Extrapolation,
-  cancelAnimation,
-  interpolate,
-  useAnimatedReaction,
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-  withTiming,
-} from 'react-native-reanimated';
-import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
-import { scheduleOnRN } from 'react-native-worklets';
+import { memo, useCallback, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { AccessibilityInfo, Animated, PanResponder, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { EASE_OUT, SPRING_SETTLE, useReduceMotion } from '../../ui/motion';
-import { useLatestCallback } from '../useLatestCallback';
+import { spring, useReduceMotion } from '../../ui/motion';
 import {
   ALL,
   TAP_SLOP,
@@ -45,185 +32,129 @@ const GUTTER = 20;
 // 再洗一次 deals the next one.
 const SESSION_SEED = Date.now() % 100000;
 
-// The draggable top card. Follows the finger (on the UI thread), tilts with the
-// horizontal offset, fades a stamp in, and on release either flies off (and then
-// reports the direction) or springs back carrying the finger's velocity. Where it
-// goes is decided by where the flick was heading, so a quick short flick commits.
-// A tap (no movement) opens the post. With reduced motion there is no fly-out:
-// the action happens and the next card is just there.
-// `drag`: shared value the top card writes (0 at rest, 1 off screen) so the card
-// underneath can rise into place as this one leaves.
+// The draggable top card. Follows the finger, tilts with the horizontal offset,
+// fades a stamp in, and on release either flies off (and then reports the
+// direction) or springs back. A tap (no movement) opens the post. With reduced
+// motion there is no fly-out: the action happens and the next card is just there.
 // `ref.fling(direction)`: the same exit for the buttons under the deck.
 // `exits(direction)`: whether that direction removes the card (fly) or not.
-function SwipeCard({ ref, post, index, top, drag, likeLabel, likeIcon, nopeLabel, onSwipe, onOpen, onAuthor, exits }) {
-  const { width, height } = useWindowDimensions();
+function SwipeCard({ ref, post, index, top, likeLabel, likeIcon, nopeLabel, onSwipe, onOpen, onAuthor, exits }) {
+  const { width } = useWindowDimensions();
   const reduce = useReduceMotion();
-  const x = useSharedValue(0);
-  const y = useSharedValue(0);
-  const startX = useSharedValue(0);
-  const startY = useSharedValue(0);
-  const locked = useSharedValue(false); // flying out: ignore the finger
+  const pan = useState(() => new Animated.ValueXY())[0];
+  const busy = useRef(false);
   // Set when a drag takes over, so the click a browser still fires at the end
   // of a mouse drag doesn't also open the post (native cancels the press itself).
-  // The flag arrives from the UI thread asynchronously, so `wasDrag` also asks
-  // the card itself: a card that is off its resting place or flying out was
-  // dragged, whatever the order of the events.
   const dragged = useRef(false);
-  const wasDrag = () => dragged.current || locked.get() || Math.abs(x.get()) > TAP_SLOP || Math.abs(y.get()) > TAP_SLOP;
-
-  const springBack = (vx = 0, vy = 0) => {
-    if (reduce) {
-      x.set(0);
-      y.set(0);
-      return;
-    }
-    x.set(withSpring(0, { ...SPRING_SETTLE, velocity: vx }));
-    y.set(withSpring(0, { ...SPRING_SETTLE, velocity: vy }));
-  };
-
-  const fling = useLatestCallback((direction, vx = 0, vy = 0) => {
-    if (locked.get()) return;
-    // Only a card that actually leaves the deck flies out; one that opens the
-    // tag sheet (up, or right in 未分類 without a suggestion) comes back.
-    if (reduce || !exits?.(direction)) {
-      springBack(vx, vy);
-      onSwipe(direction);
-      return;
-    }
-    locked.set(true);
-    const done = () => {
-      locked.set(false);
-      onSwipe(direction);
-    };
-    const leave = { duration: 200, easing: EASE_OUT };
-    const finish = (finished) => {
-      'worklet';
-      if (finished) scheduleOnRN(done);
-    };
-    if (direction === 'up') {
-      y.set(withTiming(-height * 1.2, leave, finish));
-    } else {
-      x.set(withTiming(direction === 'right' ? width * 1.3 : -width * 1.3, leave, finish));
-      y.set(withTiming(y.get() + 40, leave));
-    }
+  const latest = useRef({});
+  useLayoutEffect(() => {
+    latest.current = { top, onSwipe, reduce, width, exits };
   });
+
+  const fling = useCallback(
+    (direction) => {
+      const { onSwipe: report, reduce: still, width: w, exits: leaves } = latest.current;
+      if (busy.current) return;
+      // Only a card that actually leaves the deck flies out; one that opens the
+      // tag sheet (up, or right in 未分類 without a suggestion) comes back.
+      if (still || !leaves?.(direction)) {
+        pan.setValue({ x: 0, y: 0 });
+        report(direction);
+        return;
+      }
+      busy.current = true;
+      const x = direction === 'right' ? w * 1.3 : -w * 1.3;
+      Animated.timing(pan, { toValue: { x, y: 40 }, duration: 220, useNativeDriver: false }).start(() => {
+        busy.current = false;
+        report(direction);
+      });
+    },
+    [pan],
+  );
   useImperativeHandle(ref, () => ({ fling }), [fling]);
 
-  const markDragged = useCallback(() => {
-    dragged.current = true;
-  }, []);
-  const release = useLatestCallback((dx, dy, vx, vy) => {
-    const direction = releaseDirection(dx, dy, vx, vy);
-    if (direction === 'right' || direction === 'left' || direction === 'up') fling(direction, vx, vy);
-    else springBack(vx, vy);
-  });
+  // The handlers read the latest props through `latest` when a gesture runs,
+  // never during render; the rule can't see that through PanResponder.create.
+  // eslint-disable-next-line react-hooks/refs
+  const responder = useState(() =>
+    PanResponder.create({
+      // Let the card's Pressable take taps; claim the gesture once the finger moves.
+      onMoveShouldSetPanResponderCapture: (_, g) => latest.current.top && !busy.current && (Math.abs(g.dx) > TAP_SLOP || Math.abs(g.dy) > TAP_SLOP),
+      onPanResponderGrant: () => {
+        dragged.current = true;
+      },
+      onPanResponderMove: Animated.event([null, { dx: pan.x, dy: pan.y }], { useNativeDriver: false }),
+      onPanResponderTerminationRequest: () => false,
+      onPanResponderRelease: (_, g) => {
+        const direction = releaseDirection(g.dx, g.dy);
+        if (direction === 'right' || direction === 'left' || direction === 'up') return fling(direction);
+        if (latest.current.reduce) return pan.setValue({ x: 0, y: 0 });
+        Animated.spring(pan, { toValue: { x: 0, y: 0 }, ...spring(0.35), useNativeDriver: false }).start();
+      },
+      onPanResponderTerminate: () => pan.setValue({ x: 0, y: 0 }),
+    }),
+  )[0];
 
-  const pan = usePanGesture({
-    enabled: top,
-    minDistance: TAP_SLOP,
-    onActivate: () => {
-      'worklet';
-      if (locked.get()) return;
-      // Grabbing the card mid-spring continues from where it is, not from 0.
-      cancelAnimation(x);
-      cancelAnimation(y);
-      startX.set(x.get());
-      startY.set(y.get());
-      scheduleOnRN(markDragged);
-    },
-    onUpdate: (e) => {
-      'worklet';
-      if (locked.get()) return;
-      x.set(startX.get() + e.translationX);
-      y.set(startY.get() + e.translationY);
-    },
-    onDeactivate: (e) => {
-      'worklet';
-      if (locked.get()) return;
-      scheduleOnRN(release, x.get(), y.get(), e.velocityX, e.velocityY);
-    },
-  });
-
-  // The top card reports how far it has gone; the card underneath reads it.
-  useAnimatedReaction(
-    () => (top ? Math.min(1, Math.max(Math.abs(x.get()) / width, Math.abs(y.get()) / height) / 0.6) : -1),
-    (progress) => {
-      if (progress >= 0) drag.set(progress);
-    },
-    [top, width, height],
-  );
-
-  const cardStyle = useAnimatedStyle(() => ({
-    transform: [
-      { translateX: x.get() },
-      { translateY: y.get() },
-      { rotate: reduce ? '0deg' : `${interpolate(x.get(), [-width, 0, width], [-14, 0, 14])}deg` },
-    ],
-  }));
-  // Behind the top card: a little lower and smaller, growing into place as the
-  // top card is dragged away, so the next card never jumps when it takes over.
-  const underStyle = useAnimatedStyle(() => {
-    const p = reduce ? 0 : drag.get();
-    return { transform: [{ translateY: 10 * (1 - p) }, { scale: 0.96 + 0.04 * p }] };
-  });
-  const likeStyle = useAnimatedStyle(() => ({ opacity: interpolate(x.get(), [0, 90], [0, 1], Extrapolation.CLAMP) }));
-  const nopeStyle = useAnimatedStyle(() => ({ opacity: interpolate(x.get(), [-90, 0], [1, 0], Extrapolation.CLAMP) }));
+  const rotate = pan.x.interpolate({ inputRange: [-width, 0, width], outputRange: ['-14deg', '0deg', '14deg'] });
+  const likeOpacity = pan.x.interpolate({ inputRange: [0, 90], outputRange: [0, 1], extrapolate: 'clamp' });
+  const nopeOpacity = pan.x.interpolate({ inputRange: [-90, 0], outputRange: [1, 0], extrapolate: 'clamp' });
   const caption = (post.caption || '').slice(0, 30);
 
   if (!top) {
     // Peeks out behind the top card; not interactive, hidden from screen readers.
     return (
-      <Animated.View pointerEvents="none" importantForAccessibility="no-hide-descendants" accessibilityElementsHidden style={[StyleSheet.absoluteFill, underStyle]}>
+      <View pointerEvents="none" importantForAccessibility="no-hide-descendants" accessibilityElementsHidden style={[StyleSheet.absoluteFill, styles.under]}>
         <DeckCard post={post} index={index} />
-      </Animated.View>
+      </View>
     );
   }
   return (
-    <GestureDetector gesture={pan}>
-      <Animated.View style={[StyleSheet.absoluteFill, cardStyle]}>
-        <Pressable
-          onPressIn={() => {
+    <Animated.View
+      {...responder.panHandlers}
+      style={[StyleSheet.absoluteFill, { transform: [{ translateX: pan.x }, { translateY: pan.y }, { rotate: reduce ? '0deg' : rotate }] }]}
+    >
+      <Pressable
+        onPressIn={() => {
+          dragged.current = false;
+        }}
+        onPress={() => !dragged.current && onOpen(post)}
+        accessibilityRole="button"
+        accessibilityLabel={`@${post.author}，${caption}`}
+        accessibilityHint="開啟貼文。也可以用動作選單設為精選、看下一張或加標籤"
+        // Screen-reader users get the swipe directions as named actions on the card itself
+        // (the buttons below the deck remain the visible single-tap alternative).
+        accessibilityActions={[
+          { name: 'activate' },
+          { name: 'like', label: likeLabel },
+          { name: 'next', label: nopeLabel },
+          { name: 'tags', label: '加標籤' },
+          ...(onAuthor && post.author ? [{ name: 'author', label: `看 @${post.author} 的所有收藏` }] : []),
+        ]}
+        onAccessibilityAction={({ nativeEvent }) => {
+          const name = nativeEvent.actionName;
+          if (name === 'activate') onOpen(post);
+          else if (name === 'like') fling('right');
+          else if (name === 'next') fling('left');
+          else if (name === 'tags') fling('up');
+          else if (name === 'author') onAuthor(post.author);
+        }}
+        style={styles.fill}
+      >
+        <DeckCard
+          post={post}
+          index={index}
+          likeLabel={likeLabel}
+          likeIcon={likeIcon}
+          nopeLabel={nopeLabel}
+          likeOpacity={likeOpacity}
+          nopeOpacity={nopeOpacity}
+          onAuthorPressIn={() => {
             dragged.current = false;
           }}
-          onPress={() => !wasDrag() && onOpen(post)}
-          accessibilityRole="button"
-          accessibilityLabel={`@${post.author}，${caption}`}
-          accessibilityHint="開啟貼文。也可以用動作選單設為精選、看下一張或加標籤"
-          // Screen-reader users get the swipe directions as named actions on the card itself
-          // (the buttons below the deck remain the visible single-tap alternative).
-          accessibilityActions={[
-            { name: 'activate' },
-            { name: 'like', label: likeLabel },
-            { name: 'next', label: nopeLabel },
-            { name: 'tags', label: '加標籤' },
-            ...(onAuthor && post.author ? [{ name: 'author', label: `看 @${post.author} 的所有收藏` }] : []),
-          ]}
-          onAccessibilityAction={({ nativeEvent }) => {
-            const name = nativeEvent.actionName;
-            if (name === 'activate') onOpen(post);
-            else if (name === 'like') fling('right');
-            else if (name === 'next') fling('left');
-            else if (name === 'tags') fling('up');
-            else if (name === 'author') onAuthor(post.author);
-          }}
-          style={styles.fill}
-        >
-          <DeckCard
-            post={post}
-            index={index}
-            likeLabel={likeLabel}
-            likeIcon={likeIcon}
-            nopeLabel={nopeLabel}
-            likeStyle={likeStyle}
-            nopeStyle={nopeStyle}
-            onAuthorPressIn={() => {
-              dragged.current = false;
-            }}
-            onAuthor={onAuthor && post.author ? () => !wasDrag() && onAuthor(post.author) : undefined}
-          />
-        </Pressable>
-      </Animated.View>
-    </GestureDetector>
+          onAuthor={onAuthor && post.author ? () => !dragged.current && onAuthor(post.author) : undefined}
+        />
+      </Pressable>
+    </Animated.View>
   );
 }
 
@@ -277,8 +208,6 @@ function DeckScreenImpl({ posts, index, filter, onFilter, onOpen, onAuthor, onPi
   const insets = useSafeAreaInsets();
   const triage = filter === UNCATEGORIZED;
   const key = filter ?? ALL;
-  // How far the top card has travelled (0–1), for the card underneath.
-  const drag = useSharedValue(0);
   const [round, setRound] = useState(0);
   const [status, setStatus] = useState('');
   const topRef = useRef(null);
@@ -407,14 +336,13 @@ function DeckScreenImpl({ posts, index, filter, onFilter, onOpen, onAuthor, onPi
           </View>
         ) : (
           <>
-            {under && <SwipeCard key={under.id} post={under} index={index} top={false} drag={drag} />}
+            {under && <SwipeCard key={under.id} post={under} index={index} top={false} />}
             <SwipeCard
               key={post.id}
               ref={topRef}
               post={post}
               index={index}
               top
-              drag={drag}
               likeLabel={likeLabel}
               likeIcon={likeIcon}
               nopeLabel={nopeLabel}
@@ -464,6 +392,7 @@ const styles = StyleSheet.create({
   hintRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: 20 },
   count: { fontVariant: ['tabular-nums'] },
   deckArea: { flex: 1, marginHorizontal: GUTTER, marginTop: space.md },
+  under: { transform: [{ translateY: 10 }, { scale: 0.96 }] },
   empty: { flex: 1, justifyContent: 'center', alignItems: 'flex-start', gap: space.md },
   rule: { width: 32, height: 2 },
   textButton: { minHeight: TOUCH, flexDirection: 'row', alignItems: 'center', gap: space.xs },

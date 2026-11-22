@@ -1,6 +1,5 @@
 import { memo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import Animated from 'react-native-reanimated';
+import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { cardStill } from '../media';
@@ -41,13 +40,13 @@ function shortDate(ts) {
 // words and meta printed on the edge in onEdge / onEdgeMuted. A text-only post is
 // the back of a photo (PhotoBack): the whole card is the ruled paper and its
 // words use the paper's own onPaper / onPaperMuted.
-// `likeStyle` / `nopeStyle`: Reanimated styles that fade the stamps in with the drag. The stamps are
+// `likeOpacity` / `nopeOpacity`: Animated values from the drag. The stamps are
 // opaque theme-coloured labels (background fill + ink / accent text), so they
 // read the same on any photo and in both schemes.
 // `likeLabel`: 「精選」 normally, 「＋ 美食」 when sorting 未分類.
 // `onAuthor` / `onAuthorPressIn`: the top card's @handle is a link (the deck
 // passes them only for the card on top).
-function DeckCardImpl({ post, index, likeLabel, likeIcon = 'heart', nopeLabel = '下一張', likeStyle, nopeStyle, onAuthor, onAuthorPressIn }) {
+function DeckCardImpl({ post, index, likeLabel, likeIcon = 'heart', nopeLabel = '下一張', likeOpacity, nopeOpacity, onAuthor, onAuthorPressIn }) {
   const t = useCollectionTheme();
   const film = t.printFrame;
   const tags = post.tagIds.map((id) => index.byId[id]).filter(Boolean);
@@ -101,21 +100,21 @@ function DeckCardImpl({ post, index, likeLabel, likeIcon = 'heart', nopeLabel = 
             </Text>
           </View>
         )}
-        {likeStyle && (
+        {likeOpacity && (
           <Animated.View
             importantForAccessibility="no-hide-descendants"
             accessibilityElementsHidden
-            style={[styles.stamp, styles.like, likeStyle, { backgroundColor: t.background, borderColor: t.accent, borderRadius: t.radius.sm }]}
+            style={[styles.stamp, styles.like, { opacity: likeOpacity, backgroundColor: t.background, borderColor: t.accent, borderRadius: t.radius.sm }]}
           >
             <Text style={[t.font.headline, { color: t.accent }]}>{likeLabel}</Text>
             {likeIcon && <Ionicons name={likeIcon} size={icon.md} color={t.accent} />}
           </Animated.View>
         )}
-        {nopeStyle && (
+        {nopeOpacity && (
           <Animated.View
             importantForAccessibility="no-hide-descendants"
             accessibilityElementsHidden
-            style={[styles.stamp, styles.nope, nopeStyle, { backgroundColor: t.background, borderColor: t.foreground, borderRadius: t.radius.sm }]}
+            style={[styles.stamp, styles.nope, { opacity: nopeOpacity, backgroundColor: t.background, borderColor: t.foreground, borderRadius: t.radius.sm }]}
           >
             <Text style={[t.font.headline, { color: t.foreground }]}>{nopeLabel}</Text>
           </Animated.View>

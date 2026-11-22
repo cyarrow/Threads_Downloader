@@ -4,7 +4,6 @@ import { StatusBar } from 'expo-status-bar';
 import * as Clipboard from 'expo-clipboard';
 import { SafeAreaInsetsContext, SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useShareIntent } from './src/shareIntent';
 import { parseThreadsUrl } from './src/threads';
 import { useAppUpdate } from './src/useAppUpdate';
@@ -37,13 +36,10 @@ import { SaveSheet } from './src/collection/ui/SaveSheet';
 import { AddLinkSheet, DownloadPickerSheet, DownloadPill, LoginSheet, SettingsSheet } from './src/collection/ui/AppSheets';
 
 export default function App() {
-  // Gesture Handler needs its root view once, around everything that uses gestures.
   return (
-    <GestureHandlerRootView style={styles.root}>
-      <SafeAreaProvider>
-        <Root />
-      </SafeAreaProvider>
-    </GestureHandlerRootView>
+    <SafeAreaProvider>
+      <Root />
+    </SafeAreaProvider>
   );
 }
 

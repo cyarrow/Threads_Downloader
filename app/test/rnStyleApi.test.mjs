@@ -27,3 +27,13 @@ test('the installed react-native still lacks it (drop this guard once it returns
   assert.match(src, /absoluteFill,/);
   assert.doesNotMatch(src, /absoluteFillObject[,:]/);
 });
+
+// Build 48 crashed on launch: a Reanimated CSS transition used the string
+// 'cubic-bezier(0.23, 1, 0.32, 1)' as transitionTimingFunction. The web accepts
+// it, so the browser tests passed, but on Android Reanimated only takes its
+// predefined names or a cubicBezier(x1, y1, x2, y2) object and throws.
+test('no CSS-string cubic-bezier is passed to Reanimated transitions', () => {
+  const files = [join(root, 'App.js'), ...sources(join(root, 'src'))];
+  const hits = files.filter((f) => /cubic-bezier\(/.test(readFileSync(f, 'utf8')));
+  assert.deepEqual(hits.map((f) => f.slice(root.length)), []);
+});

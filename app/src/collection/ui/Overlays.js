@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
-import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import Animated, { FadeIn, FadeInDown, FadeOut, FadeOutDown } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useReduceMotion } from '../../ui/motion';
+import { EASE_OUT, useReduceMotion } from '../../ui/motion';
 import { TOUCH, elevation, icon, space, useCollectionTheme } from '../tokens';
 import { PrimaryButton, Sheet } from './base';
 
@@ -52,26 +53,43 @@ export function CardMenu({ post, onClose, onAction, selectable }) {
   );
 }
 
+// Toast motion: rises 25pt while fading in, leaves the way it came and a bit
+// faster (the arrival deserves the time). Reduced motion: opacity only.
+// Module scope: layout-animation builders made in render cost every re-render.
+const TOAST_ENTER = FadeInDown.duration(250).easing(EASE_OUT);
+const TOAST_EXIT = FadeOutDown.duration(200).easing(EASE_OUT);
+const TOAST_ENTER_REDUCED = FadeIn.duration(150);
+const TOAST_EXIT_REDUCED = FadeOut.duration(150);
+
+// Each toast object gets its own key, so a new message replaces the old one by
+// letting it leave and the new one arrive instead of re-fading in place.
+const toastKeys = new WeakMap();
+let nextToastKey = 0;
+function keyOf(toast) {
+  if (!toastKeys.has(toast)) toastKeys.set(toast, ++nextToastKey);
+  return toastKeys.get(toast);
+}
+
 // Snackbar for undoable actions and confirmations; polite, never steals focus.
 export function Toast({ toast, onUndo, onHide }) {
   const t = useCollectionTheme();
   const insets = useSafeAreaInsets();
   const reduce = useReduceMotion();
-  const fade = useState(() => new Animated.Value(0))[0];
 
   useEffect(() => {
     if (!toast) return;
-    fade.setValue(0);
-    Animated.timing(fade, { toValue: 1, duration: reduce ? 0 : 180, useNativeDriver: true }).start();
     const timer = setTimeout(onHide, toast.undo ? 5000 : 3000);
     return () => clearTimeout(timer);
-  }, [toast, fade, reduce, onHide]);
+  }, [toast, onHide]);
 
   if (!toast) return null;
   return (
     <Animated.View
+      key={keyOf(toast)}
+      entering={reduce ? TOAST_ENTER_REDUCED : TOAST_ENTER}
+      exiting={reduce ? TOAST_EXIT_REDUCED : TOAST_EXIT}
       accessibilityLiveRegion="polite"
-      style={[styles.toast, { borderRadius: t.radius.sm }, elevation.level2, { backgroundColor: t.foreground, bottom: insets.bottom + 88, opacity: fade }]}
+      style={[styles.toast, { borderRadius: t.radius.sm }, elevation.level2, { backgroundColor: t.foreground, bottom: insets.bottom + 88 }]}
     >
       <Text style={[t.font.label, { color: t.background, flex: 1 }]}>{toast.message}</Text>
       {toast.undo && (
